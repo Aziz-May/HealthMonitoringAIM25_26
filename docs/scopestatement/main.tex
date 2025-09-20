@@ -1,0 +1,63 @@
+\documentclass[12pt,a4paper]{report}
+
+% ----------------- Packages -----------------
+\usepackage{graphicx}   % for images
+\usepackage{setspace}   % for spacing
+\usepackage{geometry}   % for margins
+\geometry{margin=1in}
+
+% ----------------- Document -----------------
+\begin{document}
+
+% -------- Title Page --------
+\begin{titlepage}
+    \centering
+    
+    % School logo
+    \includegraphics[width=0.3\textwidth]{assets/supcom-logo.png}\par\vspace{1cm}
+    
+    % Title
+    {\Huge \textbf{Cloud of Things Scope Statement}\par}
+    \vspace{0.5cm}
+    {\Large Smart Health Monitoring System\par}
+    
+    \vfill
+    
+    % Authors
+    {\large \textbf{Authored by:}\par}
+    \vspace{0.3cm}
+    Ahmed Essouaied \\ 
+    Aziz May \\ 
+    Moez Chouari \\ 
+    Mohamed Amine Chamtouri \par
+    
+    \vspace{1cm}
+    
+    % Supervisor
+    {\large \textbf{Supervised by:}\par}
+    \vspace{0.3cm}
+    Dr. Eng. Mohamed-Bécha Kaaniche \par
+    
+    \vfill
+    
+    % Date
+    {\large \today\par}
+\end{titlepage}
+
+% -------- Chapters --------
+\tableofcontents
+\newpage
+
+\chapter{Concept}
+\input{chapters/concept.tex}
+
+\chapter{Target Audience}
+\input{chapters/target_audience.tex}
+
+\chapter{Equipment}
+\input{chapters/equipment.tex}
+
+\chapter{Functionalities}
+\input{chapters/functionalities.tex}
+
+\end{document}
