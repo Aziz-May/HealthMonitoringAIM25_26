@@ -1,0 +1,45 @@
+# Maven target directory
+/target/
+
+# IDE files
+/.idea/
+/*.iml
+*.ipr
+*.iws
+
+# Eclipse specific
+/.classpath
+/.project
+/.settings/
+
+# IntelliJ specific
+/out/
+
+# NetBeans
+/nbproject/private/
+/build/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+
+# Generated files
+*.class
+
+# Maven Wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# Secrets or credentials
+*.keystore
