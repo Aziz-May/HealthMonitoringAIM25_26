@@ -123,7 +123,7 @@ public class AuthenticationEndpoint {
                           @FormParam("username")String username,
                           @FormParam("password")String password,
                           @Context UriInfo uriInfo) throws Exception {
-        Identity identity = phoenixIAMManager.findIdentityByUsername(username);
+        Identity identity = phoenixIAMManager.findIdentityByName(username);
         if(Argon2Utility.check(identity.getPassword(),password.toCharArray())){
             logger.info("Authenticated identity:"+username);
             var params = uriInfo.getQueryParameters();

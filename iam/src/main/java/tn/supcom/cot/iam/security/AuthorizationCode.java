@@ -15,7 +15,7 @@ import java.util.UUID;
 public record AuthorizationCode(String tenantName,
                                 String identityUsername,
                                 String approvedScopes,
-                                Long expirationDate,
+                                long expirationDate,
                                 String redirectUri){
     private static final SecretKey key;
 

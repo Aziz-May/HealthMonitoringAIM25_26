@@ -42,7 +42,7 @@ public class JwtManager {
 
     private void generateKeyPair() {
         var kid = UUID.randomUUID().toString();
-        keyPairExpires.put(kid, Instant.now().getEpochSecond()+keyPairLifeTime);
+        keyPairExpires.put(kid, Long.valueOf(Instant.now().getEpochSecond()+keyPairLifeTime));
         cachedKeyPairs.put(kid, keyPairGenerator.generateKeyPair());
     }
 
