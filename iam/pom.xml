@@ -17,6 +17,7 @@
         <argon2.version>2.11</argon2.version>
         <jnosql.mongodb.version>1.1.10</jnosql.mongodb.version>
         <mongodb.driver.version>5.6.0</mongodb.driver.version>
+        <junit-jupiter.version>6.0.1</junit-jupiter.version>
     </properties>
 
     <packaging>war</packaging>
@@ -49,6 +50,13 @@
             <artifactId>mongodb-driver-sync</artifactId>
             <version>${mongodb.driver.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+
 
     </dependencies>
 
