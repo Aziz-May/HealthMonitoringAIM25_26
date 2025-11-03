@@ -1,5 +1,4 @@
 \documentclass[12pt,a4paper]{article}
-
 % ==================== PACKAGES ====================
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -51,6 +50,7 @@
 
 % ==================== TABLE OF CONTENTS STYLING ====================
 \renewcommand{\contentsname}{\color{primaryblue}\Huge\bfseries Table of Contents}
+\renewcommand{\listfigurename}{\color{primaryblue}\Huge\bfseries List of Figures}
 \renewcommand{\cftsecfont}{\large\bfseries\color{primaryblue}}
 \renewcommand{\cftsubsecfont}{\normalsize\color{textgray}}
 \renewcommand{\cftsecpagefont}{\large\bfseries\color{primaryblue}}
@@ -73,7 +73,7 @@
 
 \begin{titlepage}
 \centering
-\vspace*{cm}
+\vspace*{0cm}
 
 % Logo
 \includegraphics[width=6cm]{Images/Supcom.png}
@@ -100,7 +100,7 @@
 {\large Dr. Eng. Mohamed-Bécha Kaaniche}\\[2cm]
 
 % Academic year
-{\small \textit{Academic Year:}}\\[0.4cm]
+{\small \textit{Academic Year:}}\\[0.3cm]
 {\large\bfseries 2025--2026}
 
 \vfill
@@ -117,7 +117,19 @@
 \color{accentred}\rule{0.5\textwidth}{1.5pt}
 \end{center}
 \vspace{1cm}
+\renewcommand{\contentsname}{}
 \tableofcontents
+
+% ==================== LIST OF FIGURES ====================
+\newpage
+\begin{center}
+\vspace*{2cm}
+{\Huge\bfseries\color{primaryblue} List of Figures}\\[0.3cm]
+\color{accentred}\rule{0.5\textwidth}{1.5pt}
+\end{center}
+\vspace{1cm}
+\renewcommand{\listfigurename}{}
+\listoffigures
 \newpage
 
 % ==================== MAIN CONTENT ====================
@@ -164,6 +176,75 @@ Figure \ref{fig:usecase} illustrates the Use Case diagram of the system, depicti
     }
     \caption{\textbf{Use Case Diagram - System Actors and Interactions}}
     \label{fig:usecase}
+\end{figure}
+
+\subsection{Class Diagram}
+
+Figure \ref{fig:classdiagram} presents the Class Diagram of the Smart Health Monitoring System. It captures the main structural components of the solution, including hardware elements (sensors, Raspberry Pi), cloud and AI modules, and application-layer entities such as patients, alerts, and healthcare professionals. The diagram highlights relationships between system classes and showcases how data flows from IoT devices to the cloud backend for storage, analysis, and visualization.
+
+\begin{figure}[H]
+    \centering
+    \fcolorbox{primaryblue}{white}{%
+        \includegraphics[width=1\textwidth]{Images/Class_Diagram.png}
+    }
+    \caption{\textbf{Class Diagram — System Architecture and Relationships}}
+    \label{fig:classdiagram}
+\end{figure}
+
+\subsection{Sequence Diagrams}
+
+This section illustrates the dynamic behavior of the system through several sequence diagrams. Each scenario demonstrates the interaction between devices, cloud services, and users during specific events such as data acquisition, emergency detection, and alert generation.
+
+\subsubsection{Sensor Data Acquisition \& Processing}
+
+Figure \ref{fig:sensordata} demonstrates the process through which wearable sensors capture vital signs and transmit them to the cloud for storage and analysis. It details each stage — from data collection and validation on the Raspberry Pi to cloud-based anomaly detection.
+
+\begin{figure}[H]
+    \centering
+    \fcolorbox{primaryblue}{white}{%
+        \includegraphics[width=0.9\textwidth]{Images/Sequence_Diag_func1.png}
+    }
+    \caption{\textbf{Sequence Diagram — Sensor Data Acquisition and Processing}}
+    \label{fig:sensordata}
+\end{figure}
+
+\subsubsection{Heart Attack Prediction Sequence}
+
+Figure \ref{fig:heartattack} illustrates the predictive workflow used to detect potential heart attacks based on continuous vital data. The system evaluates health metrics in real-time and triggers alerts if a high-risk condition is detected.
+
+\begin{figure}[H]
+    \centering
+    \fcolorbox{primaryblue}{white}{%
+        \includegraphics[width=0.9\textwidth]{Images/Sequence_Diag_func4.png}
+    }
+    \caption{\textbf{Sequence Diagram — Heart Attack Prediction}}
+    \label{fig:heartattack}
+\end{figure}
+
+\subsubsection{Fall Detection Emergency Sequence}
+
+Figure \ref{fig:fallsequence} describes how the system identifies falls using AI-driven image analysis from cameras and wearable devices. It also shows how the backend triggers alerts to caregivers and family members with patient details and GPS coordinates.
+
+\begin{figure}[H]
+    \centering
+    \fcolorbox{primaryblue}{white}{%
+        \includegraphics[width=0.95\textwidth]{Images/Sequence_Diag_func3.png}
+    }
+    \caption{\textbf{Sequence Diagram — Fall Detection Emergency}}
+    \label{fig:fallsequence}
+\end{figure}
+
+\subsubsection{GPS Location \& Emergency Response}
+
+Figure \ref{fig:gpssequence} presents the GPS-based emergency workflow where the system determines a patient’s location and communicates it to the cloud. The backend coordinates notifications to emergency services, healthcare teams, and family members.
+
+\begin{figure}[H]
+    \centering
+    \fcolorbox{primaryblue}{white}{%
+        \includegraphics[width=0.95\textwidth]{Images/Sequence_Diag_func2.png}
+    }
+    \caption{\textbf{Sequence Diagram — GPS Location and Emergency Response}}
+    \label{fig:gpssequence}
 \end{figure}
 
 \newpage
