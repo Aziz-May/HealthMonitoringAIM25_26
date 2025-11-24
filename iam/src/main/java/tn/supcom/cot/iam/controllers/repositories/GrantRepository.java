@@ -12,6 +12,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface GrantRepository extends CrudRepository<Grant, GrantPK> {
-
+public interface GrantRepository extends CrudRepository<Grant, String> {
+    Optional<Grant> findByTenantIdAndIdentityId(String tenantId, String identityId);
 }

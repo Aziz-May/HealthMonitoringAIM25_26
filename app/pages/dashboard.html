@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Health Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/styles/main.css" rel="stylesheet">
+</head>
+<body>
+    <!--Dashboard Section-->
+    <div class="container-fluid py-4">
+        <!-- Floating particles background -->
+        <div class="particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        
+        <div class="row">
+            <!-- User Profile Section -->
+            <div class="col-md-4 left-part">
+                <div class="card mb-2 m-2">
+                    <div class="profile-header">
+                        <div class="medical-cross">
+                            <i class="fas fa-heartbeat"></i>
+                        </div>
+                        <h2 class="welcome-text" id="name"></h2>
+                        <p class="welcome-message">Monitoring your health in real-time.</p>
+                        <div class="d-flex align-items-center">
+                            <div class="profile-avatar">
+                                <i class="fas fa-user-injured"></i>
+                            </div>
+                            <div>
+                                <h5 class="profile-name" id="profile-name"></h5>
+                                <small class="profile-role">
+                                    <i class="fas fa-stethoscope"></i> Patient
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Fall Detection Status -->
+                <div class="card p-3 m-2 mt-3 feature-card">
+                    <div class="feature-icon fall-icon">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <h5 class="card-title mt-3">
+                        <i class="fas fa-shield-alt text-primary"></i> Fall Detection
+                    </h5>
+                    <p class="text-muted small mb-3">
+                        AI-Powered Fall Detection System
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">Active Monitoring</span>
+                        <div class="form-check form-switch">
+                            <input id="fallDetection" class="form-check-input device-switch" type="checkbox" checked>
+                        </div>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot active"></div>
+                        <small class="text-success fw-bold">
+                            System Operational
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Emergency Alert -->
+                <div class="card p-3 m-2 mt-3 emergency-card">
+                    <div class="emergency-glow"></div>
+                    <div class="feature-icon emergency-icon">
+                        <i class="fas fa-ambulance"></i>
+                    </div>
+                    <h5 class="card-title mt-3 text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Emergency Alert
+                    </h5>
+                    <p class="text-muted small mb-3">
+                        Trigger immediate alert to caregivers and emergency services
+                    </p>
+                    <button id="emergencyAlert" class="btn btn-danger w-100 emergency-btn">
+                        <i class="fas fa-phone-alt me-2"></i> SOS Emergency
+                    </button>
+                    <small class="d-block text-center mt-2 text-muted">
+                        <i class="fas fa-info-circle"></i> Available 24/7
+                    </small>
+                </div>
+
+            </div>
+
+            <!-- Vitals Section -->
+            <div class="col-md-8">
+                <div class="row">
+                    <!-- Heart Rate -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card p-3 vital-card">
+                            <div class="vital-badge heart-badge">
+                                <i class="fas fa-heart"></i>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Heart Rate</h6>
+                                    <h3 id="heartRate" class="vital-value">-- bpm</h3>
+                                    <small class="vital-status text-success">
+                                        <i class="fas fa-check-circle"></i> Normal
+                                    </small>
+                                </div>
+                                <i class="fas fa-heartbeat fa-3x"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SpO2 -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card p-3 vital-card">
+                            <div class="vital-badge oxygen-badge">
+                                <i class="fas fa-wind"></i>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Blood Oxygen</h6>
+                                    <h3 id="spo2" class="vital-value">-- %</h3>
+                                    <small class="vital-status text-success">
+                                        <i class="fas fa-check-circle"></i> Normal
+                                    </small>
+                                </div>
+                                <i class="fas fa-lungs fa-3x"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Blood Pressure -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card p-3 vital-card">
+                            <div class="vital-badge pressure-badge">
+                                <i class="fas fa-heartbeat"></i>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Blood Pressure</h6>
+                                    <h3 id="bloodPressure" class="vital-value">-- mmHg</h3>
+                                    <small class="vital-status text-success">
+                                        <i class="fas fa-check-circle"></i> Normal
+                                    </small>
+                                </div>
+                                <i class="fas fa-tint fa-3x"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Body Temperature -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card p-3 vital-card">
+                            <div class="vital-badge temp-badge">
+                                <i class="fas fa-temperature-high"></i>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Body Temperature</h6>
+                                    <h3 id="bodyTemperature" class="vital-value">-- °C</h3>
+                                    <small class="vital-status text-success">
+                                        <i class="fas fa-check-circle"></i> Normal
+                                    </small>
+                                </div>
+                                <i class="fas fa-thermometer-half fa-3x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GPS Location -->
+                <div class="card p-3 mt-3 map-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-map-marker-alt text-danger"></i> Current Location
+                        </h5>
+                        <button class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh
+                        </button>
+                    </div>
+                    <p class="text-muted small mb-3">
+                        <i class="fas fa-info-circle"></i> Real-time GPS tracking for emergency response
+                    </p>
+                    <div id="map" class="map-container">
+                        <div class="map-overlay">
+                            <div class="map-icon">
+                                <i class="fas fa-map-marked-alt fa-4x mb-3"></i>
+                                <h5>GPS Tracking Ready</h5>
+                                <p class="text-muted">Location services active</p>
+                                <div class="location-pulse"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-3 text-muted small">
+                        <span><i class="fas fa-clock"></i> Last updated: Just now</span>
+                        <span><i class="fas fa-signal"></i> Signal: Strong</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

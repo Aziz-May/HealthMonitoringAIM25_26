@@ -1,5 +1,6 @@
 package tn.supcom.cot.iam.controllers.managers;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
@@ -15,7 +16,7 @@ import tn.supcom.cot.iam.entities.Tenant;
 import java.util.HashSet;
 import java.util.Optional;
 
-@Singleton
+@ApplicationScoped
 public class PhoenixIAMManager {
 
     @Inject
@@ -40,10 +41,7 @@ public class PhoenixIAMManager {
         if (tenant == null) {
             throw new IllegalArgumentException("Invalid Client Id!");
         }
-        var pk = new GrantPK();
-        pk.setIdentityId(identityId);
-        pk.setTenantId(tenant.getId());
-        return grantRepository.findById(pk);
+        return grantRepository.findByTenantIdAndIdentityId(tenant.getId(), identityId);
     }
 
     public String[] getRoles(String username) {
@@ -60,5 +58,18 @@ public class PhoenixIAMManager {
             }
         }
         return ret.toArray(new String[0]);
+    }
+
+    public Identity createIdentity(String username, String password) {
+        if (identityRepository.findByUsername(username).isPresent()) {
+            throw new IllegalArgumentException("Username already exists");
+        }
+        Identity identity = new Identity();
+        identity.setId(java.util.UUID.randomUUID().toString());
+        identity.setUsername(username);
+        identity.setPassword(tn.supcom.cot.iam.security.Argon2Utility.hash(password.toCharArray()));
+        identity.setRoles(1); // Default role (USER)
+        identity.setProvidedScopes("resource.read resource.write"); // Default scopes
+        return identityRepository.save(identity);
     }
 }

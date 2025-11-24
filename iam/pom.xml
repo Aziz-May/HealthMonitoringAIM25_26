@@ -17,6 +17,9 @@
         <argon2.version>2.11</argon2.version>
         <jnosql.mongodb.version>1.1.10</jnosql.mongodb.version>
         <mongodb.driver.version>5.6.0</mongodb.driver.version>
+        <!-- Plugin versions -->
+        <wildfly.plugin.version>5.0.1.Final</wildfly.plugin.version>
+        <maven.war.plugin.version>3.4.0</maven.war.plugin.version>
     </properties>
 
     <packaging>war</packaging>
@@ -49,10 +52,28 @@
             <artifactId>mongodb-driver-sync</artifactId>
             <version>${mongodb.driver.version}</version>
         </dependency>
-
     </dependencies>
 
     <build>
         <finalName>iam-${project.version}</finalName>
+        <plugins>
+            <!-- Standard WAR Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>${maven.war.plugin.version}</version>
+            </plugin>
+
+            <!-- WildFly Plugin for Deployment -->
+            <plugin>
+                <groupId>org.wildfly.plugins</groupId>
+                <artifactId>wildfly-maven-plugin</artifactId>
+                <version>${wildfly.plugin.version}</version>
+                <configuration>
+                    <!-- Tells the plugin exactly which file to grab -->
+                    <filename>iam-${project.version}.war</filename>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 </project>

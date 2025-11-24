@@ -8,19 +8,19 @@ import java.time.LocalDateTime;
 
 
 @Entity
-public class Grant implements RootEntity<GrantPK> {
+public class Grant implements RootEntity<String> {
 
     @Id
-    private GrantPK id;
+    private String id;
 
     @Column
     private long version=0L;
 
     @Column
-    private Tenant tenant;
+    private String tenantId;
 
     @Column
-    private Identity identity;
+    private String identityId;
 
     @Column
     private String approvedScopes;
@@ -29,12 +29,12 @@ public class Grant implements RootEntity<GrantPK> {
     private LocalDateTime issuanceDateTime;
 
     @Override
-    public GrantPK getId() {
+    public String getId() {
         return id;
     }
 
     @Override
-    public void setId(GrantPK id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -52,20 +52,20 @@ public class Grant implements RootEntity<GrantPK> {
         ++this.version;
     }
 
-    public Tenant getTenant() {
-        return tenant;
+    public String getTenantId() {
+        return tenantId;
     }
 
-    public void setTenant(Tenant tenant) {
-        this.tenant = tenant;
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
     }
 
-    public Identity getIdentity() {
-        return identity;
+    public String getIdentityId() {
+        return identityId;
     }
 
-    public void setIdentity(Identity identity) {
-        this.identity = identity;
+    public void setIdentityId(String identityId) {
+        this.identityId = identityId;
     }
 
     public String getApprovedScopes() {

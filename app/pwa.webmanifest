@@ -1,0 +1,49 @@
+{
+    "name": "Smart Health Monitoring System",
+    "short_name": "HealthMonitor",
+    "author": "Smart Health Team",
+    "start_url": "/",
+    "scope": "/",
+    "permissions": ["notifications","cookies","geolocation"],
+    "display": "standalone",
+    "background":{
+        "service_worker": "./sw.js"
+    },
+    "background_color": "#007bff",
+    "theme_color": "#0056b3",
+    "default_locale": "en",
+    "orientation": "portrait-primary",
+    "icons": [
+      {
+        "src": "images/icons/android-chrome-192x192.png",
+        "type": "image/png",
+        "sizes": "192x192",
+        "purpose": "maskable any"
+      },
+      {
+        "src": "images/icons/android-chrome-512x512.png",
+        "type": "image/png",
+        "sizes": "512x512",
+        "purpose": "maskable any"
+      },
+      {
+        "src": "images/icons/apple-touch-icon.png",
+        "type": "image/png",
+        "sizes": "180x180",
+        "purpose": "any"
+      },
+      {
+        "src": "images/icons/favicon-32x32.png",
+        "type": "image/png",
+        "sizes": "32x32",
+        "purpose": "any"
+      },
+      {
+        "src": "images/icons/favicon-16x16.png",
+        "type": "image/png",
+        "sizes": "16x16",
+        "purpose": "any"
+      }
+    ]
+    
+}

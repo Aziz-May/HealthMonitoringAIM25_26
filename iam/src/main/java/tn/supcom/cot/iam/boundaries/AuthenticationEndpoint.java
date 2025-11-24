@@ -108,7 +108,48 @@ public class AuthenticationEndpoint {
         };
         return Response.ok(stream).location(uriInfo.getBaseUri().resolve("/login/authorization"))
                 .cookie(new NewCookie.Builder(CHALLENGE_RESPONSE_COOKIE_ID)
-                        .httpOnly(true).secure(true).sameSite(NewCookie.SameSite.STRICT).value(tenant.getName()+"#"+requestedScope+"$"+redirectUri).build()).build();
+                        .httpOnly(true).secure(true).sameSite(NewCookie.SameSite.STRICT)
+                        .value(tenant.getName()+"#"+requestedScope+"$"+redirectUri+"&"+params.getFirst("response_type")+"@"+params.getFirst("code_challenge")+"!"+params.getFirst("state"))
+                        .build()).build();
+    }
+
+    @GET
+    @Path("/register")
+    @Produces(MediaType.TEXT_HTML)
+    public Response registerPage(@Context UriInfo uriInfo) {
+        StreamingOutput stream = output -> {
+            try (InputStream is = Objects.requireNonNull(getClass().getResource("/register.html")).openStream()){
+                output.write(is.readAllBytes());
+            }
+        };
+        return Response.ok(stream).build();
+    }
+
+    @POST
+    @Path("/register")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response register(@FormParam("username") String username,
+                             @FormParam("password") String password,
+                             @FormParam("confirm_password") String confirmPassword,
+                             @FormParam("client_id") String clientId,
+                             @FormParam("redirect_uri") String redirectUri) {
+        
+        if (!password.equals(confirmPassword)) {
+             return informUserAboutError("Passwords do not match");
+        }
+        
+        try {
+            phoenixIAMManager.createIdentity(username, password);
+            
+            if (redirectUri != null && !redirectUri.isEmpty()) {
+                 return Response.seeOther(URI.create(redirectUri)).build();
+            }
+            
+            return Response.ok("Registration successful! You can now login.").build();
+            
+        } catch (Exception e) {
+            return informUserAboutError("Registration failed: " + e.getMessage());
+        }
     }
 
     private String cipher(String codeChallenge) {
@@ -140,7 +181,10 @@ public class AuthenticationEndpoint {
             }else{
                 StreamingOutput stream = output -> {
                     try (InputStream is = Objects.requireNonNull(getClass().getResource("/consent.html")).openStream()){
-                        output.write(is.readAllBytes());
+                        String html = new String(is.readAllBytes());
+                        // Inject username into the consent page
+                        html = html.replace("id=\"username\" value=\"\"", "id=\"username\" value=\"" + username + "\"");
+                        output.write(html.getBytes());
                     }
                 };
                 return Response.ok(stream).build();
@@ -155,6 +199,16 @@ public class AuthenticationEndpoint {
         }
     }
 
+    @POST
+    @Path("/login/authorization/consent")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response grantConsentPost(@CookieParam(CHALLENGE_RESPONSE_COOKIE_ID) Cookie cookie,
+                                     @FormParam("approved_scope") String scope,
+                                     @FormParam("approval_status") String approvalStatus,
+                                     @FormParam("username") String username){
+        return grantConsent(cookie, scope, approvalStatus, username);
+    }
+
     @PATCH
     @Path("/login/authorization")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -162,8 +216,16 @@ public class AuthenticationEndpoint {
                                  @FormParam("approved_scope") String scope,
                                  @FormParam("approval_status") String approvalStatus,
                                  @FormParam("username") String username){
+        // Parse cookie: tenant#scope$redirectUri&responseType@codeChallenge!state
+        String[] parts = cookie.getValue().split("\\$");
+        String redirectUri = parts[1].split("&")[0];
+        String[] oauthParams = parts[1].split("&");
+        String responseType = oauthParams.length > 1 ? oauthParams[1].split("@")[0] : "code";
+        String codeChallenge = oauthParams.length > 1 && oauthParams[1].contains("@") ? oauthParams[1].split("@")[1].split("!")[0] : null;
+        String state = oauthParams.length > 1 && oauthParams[1].contains("!") ? oauthParams[1].split("!")[1] : null;
+        
         if ("NO".equals(approvalStatus)) {
-            var location = UriBuilder.fromUri(cookie.getValue().split("\\$")[1])
+            var location = UriBuilder.fromUri(redirectUri)
                     .queryParam("error", "User doesn't approved the request.")
                     .queryParam("error_description", "User doesn't approved the request.")
                     .build();
@@ -172,16 +234,17 @@ public class AuthenticationEndpoint {
         //==> YES
         List<String> approvedScopes = Arrays.stream(scope.split(" ")).toList();
         if (approvedScopes.isEmpty()) {
-            var location = UriBuilder.fromUri(cookie.getValue().split("\\$")[1])
+            var location = UriBuilder.fromUri(redirectUri)
                     .queryParam("error", "User hasn't approved the request.")
                     .queryParam("error_description", "User hasn't approved the request.")
                     .build();
             return Response.seeOther(location).build();
         }
         try {
+            String clientId = cookie.getValue().split("#")[0];
             return Response.seeOther(UriBuilder.fromUri(buildActualRedirectURI(
-                    cookie.getValue().split("\\$")[1],null,
-                    cookie.getValue().split("#")[0],username, String.join(" ", approvedScopes), null,null
+                    redirectUri, responseType,
+                    clientId, username, String.join(" ", approvedScopes), codeChallenge, state
             )).build()).build();
         } catch (Exception e) {
             throw new RuntimeException(e);
