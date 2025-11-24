@@ -11,5 +11,8 @@
         <module name="api" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="HealthMonitoringAIM25_26" target="1.5" />
+    </bytecodeTargetLevel>
   </component>
 </project>
