@@ -59,7 +59,7 @@ public enum Role {
         return ids.get(value);
     }
 
-    public static String byValue(Long value){
+    public static String byValue(long value){
         return ids.get(value);
     }
 

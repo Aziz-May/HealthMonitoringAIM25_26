@@ -17,10 +17,17 @@
         <argon2.version>2.11</argon2.version>
         <jnosql.mongodb.version>1.1.10</jnosql.mongodb.version>
         <mongodb.driver.version>5.6.0</mongodb.driver.version>
-        <!-- Plugin versions -->
+
+        <!-- Added in your branch -->
         <wildfly.plugin.version>5.0.1.Final</wildfly.plugin.version>
         <maven.war.plugin.version>3.4.0</maven.war.plugin.version>
+
+        <!-- Added in main branch -->
+        <junit-jupiter.version>6.0.1</junit-jupiter.version>
+        <mockito-junit-jupiter.version>5.20.0</mockito-junit-jupiter.version>
+        <mockito-core.version>5.20.0</mockito-core.version>
     </properties>
+
 
     <packaging>war</packaging>
 
@@ -52,7 +59,28 @@
             <artifactId>mongodb-driver-sync</artifactId>
             <version>${mongodb.driver.version}</version>
         </dependency>
+
+        <!-- Test dependencies from main branch -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito-core.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito-junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
 
     <build>
         <finalName>iam-${project.version}</finalName>
