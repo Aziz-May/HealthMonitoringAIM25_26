@@ -70,6 +70,32 @@ public class PhoenixIAMManager {
         identity.setPassword(tn.supcom.cot.iam.security.Argon2Utility.hash(password.toCharArray()));
         identity.setRoles(1); // Default role (USER)
         identity.setProvidedScopes("resource.read resource.write"); // Default scopes
+        
+        // Save and return the identity
         return identityRepository.save(identity);
+    }
+
+    public Grant saveGrant(String tenantName, String username, String approvedScopes) {
+        Tenant tenant = findTenantByName(tenantName);
+        
+        // Try to find the identity, if not found it might be a timing issue
+        Optional<Identity> identityOpt = identityRepository.findByUsername(username);
+        if (identityOpt.isEmpty()) {
+            throw new IllegalArgumentException("User not found: " + username);
+        }
+        Identity identity = identityOpt.get();
+        
+        return saveGrantForIdentity(tenant.getId(), identity.getId(), approvedScopes);
+    }
+    
+    public Grant saveGrantForIdentity(String tenantId, String identityId, String approvedScopes) {
+        Grant grant = new Grant();
+        grant.setId(java.util.UUID.randomUUID().toString());
+        grant.setTenantId(tenantId);
+        grant.setIdentityId(identityId);
+        grant.setApprovedScopes(approvedScopes);
+        grant.setIssuanceDateTime(java.time.LocalDateTime.now());
+        
+        return grantRepository.save(grant);
     }
 }

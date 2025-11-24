@@ -93,7 +93,7 @@ export function registration() {
         // Initiate the registration flow when the link is clicked
         signupButton.addEventListener("click", async function (e) {
             e.preventDefault();
-            console.log("Signup button clicked!");
+            console.log("Signup button clicked! Starting OAuth registration flow...");
 
             // Check if registration endpoint is configured
             if (!config.registration_endpoint || config.registration_endpoint === "") {
@@ -102,10 +102,27 @@ export function registration() {
                 return;
             }
 
-            // Build the registration URL
+            // Create and store a random "state" value
+            var state = generateRandomString();
+            localStorage.setItem("pkce_state", state);
+
+            // Create and store a new PKCE code_verifier (the plaintext random secret)
+            var code_verifier = generateRandomString();
+            localStorage.setItem("pkce_code_verifier", code_verifier);
+
+            // Hash and base64-urlencode the secret to use as the challenge
+            var code_challenge = await pkceChallengeFromVerifier(code_verifier);
+
+            // Build the registration URL with all OAuth parameters
             var url = config.registration_endpoint 
                 + "?client_id=" + config.client_id
-                + "&redirect_uri=" + config.redirect_uri;
+                + "&redirect_uri=" + config.redirect_uri
+                + "&scope=" + encodeURIComponent(config.requested_scopes)
+                + "&response_type=code"
+                + "&code_challenge=" + encodeURIComponent(code_challenge)
+                + "&state=" + encodeURIComponent(state);
+
+            console.log("Redirecting to registration:", url);
 
             // Redirect to the IAM server
             window.location = url;
@@ -181,25 +198,37 @@ export function handlePKCERedirect(){
     // console.log(q.code);
 
     if (q.code) {
-        if (localStorage.getItem("pkce_state") !== q.state) {
-            alert("Invalid state");
-        } else {
-            sendPostRequest(config.token_endpoint, {
-                grant_type: "authorization_code",
-                code: q.code,
-                client_id: config.client_id,
-                redirect_uri: config.redirect_uri,
-                code_verifier: localStorage.getItem("pkce_code_verifier")
-            }, function(request, body) {
-                sessionStorage.setItem('accessToken', body.access_token);
-                const signInEvent = new CustomEvent("signIn", { detail: body });
-                document.dispatchEvent(signInEvent);
-                window.history.replaceState({}, null, "/");
-                location.reload();
-            }, function(request, error) {
-                console.log(error.error + ": " + error.error_description);
-            });
+        const storedState = localStorage.getItem("pkce_state");
+        console.log("State validation - Stored:", storedState, "Received:", q.state);
+        
+        if (storedState !== q.state) {
+            console.error("State mismatch! Stored:", storedState, "Received:", q.state);
+            alert("Invalid state - possible CSRF attack or session expired. Please try logging in again.");
+            localStorage.removeItem("pkce_state");
+            localStorage.removeItem("pkce_code_verifier");
+            return;
         }
+        
+        sendPostRequest(config.token_endpoint, {
+            grant_type: "authorization_code",
+            code: q.code,
+            client_id: config.client_id,
+            redirect_uri: config.redirect_uri,
+            code_verifier: localStorage.getItem("pkce_code_verifier")
+        }, function(request, body) {
+            console.log("Token received:", body);
+            sessionStorage.setItem('accessToken', body.access_token);
+            console.log("Token saved to sessionStorage");
+            const signInEvent = new CustomEvent("signIn", { detail: body });
+            document.dispatchEvent(signInEvent);
+            
+            // Clean up URL and reload to trigger router
+            console.log("Cleaning URL and reloading...");
+            window.history.replaceState({}, document.title, "/app/");
+            window.location.reload();
+        }, function(request, error) {
+            console.error("Token exchange failed:", error.error + ": " + error.error_description);
+        });
         
         localStorage.removeItem("pkce_state");
         localStorage.removeItem("pkce_code_verifier");

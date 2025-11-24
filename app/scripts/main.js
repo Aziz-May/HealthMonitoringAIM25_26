@@ -56,7 +56,9 @@ import { toggleDevice } from './websocket.js';
     });
 
     // Check session and handle initial page state
+    console.log("Checking session...");
     if (!checkSession()) {
+        console.log("No session found, showing welcome page");
         let mainContent = document.getElementById('mainElem');
         mainContent.innerHTML = '';
         mainContent.appendChild(document.getElementById('welcome-content').content.cloneNode(true));
@@ -65,8 +67,10 @@ import { toggleDevice } from './websocket.js';
         registerPKCEClickListener();
         registration();
         
+        console.log("Calling handlePKCERedirect...");
         handlePKCERedirect();
     } else {
+        console.log("Session found! User is logged in");
         const signInEvent = new CustomEvent("signIn", { 
             detail: sessionStorage.getItem('oauth-session') 
         });

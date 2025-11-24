@@ -178,9 +178,13 @@
                     >
                 </div>
                 
-                <!-- Hidden fields to pass parameters -->
+                <!-- Hidden fields to pass OAuth parameters -->
                 <input type="hidden" name="client_id" id="client_id">
                 <input type="hidden" name="redirect_uri" id="redirect_uri">
+                <input type="hidden" name="scope" id="scope">
+                <input type="hidden" name="response_type" id="response_type">
+                <input type="hidden" name="code_challenge" id="code_challenge">
+                <input type="hidden" name="state" id="state">
                 
                 <button type="submit" class="btn-login">Sign Up</button>
             </form>
@@ -196,12 +200,20 @@
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             
-            // Set hidden fields with query parameters
+            // Set all OAuth parameters as hidden fields
             const clientId = urlParams.get('client_id');
             const redirectUri = urlParams.get('redirect_uri');
+            const scope = urlParams.get('scope');
+            const responseType = urlParams.get('response_type');
+            const codeChallenge = urlParams.get('code_challenge');
+            const state = urlParams.get('state');
             
             if (clientId) document.getElementById('client_id').value = clientId;
             if (redirectUri) document.getElementById('redirect_uri').value = redirectUri;
+            if (scope) document.getElementById('scope').value = scope;
+            if (responseType) document.getElementById('response_type').value = responseType;
+            if (codeChallenge) document.getElementById('code_challenge').value = codeChallenge;
+            if (state) document.getElementById('state').value = state;
         });
 
         function goToLogin() {

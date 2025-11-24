@@ -108,7 +108,11 @@ public class AuthenticationEndpoint {
         };
         return Response.ok(stream).location(uriInfo.getBaseUri().resolve("/login/authorization"))
                 .cookie(new NewCookie.Builder(CHALLENGE_RESPONSE_COOKIE_ID)
-                        .httpOnly(true).secure(true).sameSite(NewCookie.SameSite.STRICT)
+                        .httpOnly(true)
+                        .secure(false) // Changed to false for HTTP
+                        .sameSite(NewCookie.SameSite.LAX) // Changed to LAX for better compatibility
+                        .path("/") // Added path
+                        .maxAge(600) // Added max age (10 minutes)
                         .value(tenant.getName()+"#"+requestedScope+"$"+redirectUri+"&"+params.getFirst("response_type")+"@"+params.getFirst("code_challenge")+"!"+params.getFirst("state"))
                         .build()).build();
     }
@@ -132,17 +136,46 @@ public class AuthenticationEndpoint {
                              @FormParam("password") String password,
                              @FormParam("confirm_password") String confirmPassword,
                              @FormParam("client_id") String clientId,
-                             @FormParam("redirect_uri") String redirectUri) {
+                             @FormParam("redirect_uri") String redirectUri,
+                             @FormParam("scope") String scope,
+                             @FormParam("response_type") String responseType,
+                             @FormParam("code_challenge") String codeChallenge,
+                             @FormParam("state") String state) {
         
         if (!password.equals(confirmPassword)) {
              return informUserAboutError("Passwords do not match");
         }
         
         try {
-            phoenixIAMManager.createIdentity(username, password);
+            Identity newIdentity = phoenixIAMManager.createIdentity(username, password);
             
-            if (redirectUri != null && !redirectUri.isEmpty()) {
-                 return Response.seeOther(URI.create(redirectUri)).build();
+            // After registration, show consent page (only time user will see it)
+            if (clientId != null && redirectUri != null) {
+                // Create cookie with OAuth params - store username for the grant
+                // Format: clientId#scope$redirectUri&responseType@codeChallenge!state%username
+                String cookieValue = clientId + "#" + (scope != null ? scope : "openid") + "$" 
+                    + redirectUri + "&" + (responseType != null ? responseType : "code") 
+                    + "@" + (codeChallenge != null ? codeChallenge : "") 
+                    + "!" + (state != null ? state : "")
+                    + "%" + username; // Add username to cookie
+                NewCookie cookie = new NewCookie.Builder(CHALLENGE_RESPONSE_COOKIE_ID)
+                        .value(cookieValue)
+                        .path("/")
+                        .httpOnly(true)
+                        .secure(false)
+                        .maxAge(600)
+                        .build();
+                
+                // Load consent page
+                StreamingOutput stream = output -> {
+                    try (InputStream is = Objects.requireNonNull(getClass().getResource("/consent.html")).openStream()){
+                        String html = new String(is.readAllBytes());
+                        html = html.replace("{{scope}}", scope != null ? scope : "openid")
+                                   .replace("{{username}}", username);
+                        output.write(html.getBytes());
+                    }
+                };
+                return Response.ok(stream).cookie(cookie).build();
             }
             
             return Response.ok("Registration successful! You can now login.").build();
@@ -167,33 +200,52 @@ public class AuthenticationEndpoint {
         Identity identity = phoenixIAMManager.findIdentityByName(username);
         if(Argon2Utility.check(identity.getPassword(),password.toCharArray())){
             logger.info("Authenticated identity:"+username);
-            var params = uriInfo.getQueryParameters();
-            Optional<Grant> grant = phoenixIAMManager.findGrant(cookie.getValue().split("#")[0],identity.getId());
-            if(grant.isPresent()){
-                String redirectURI = buildActualRedirectURI(
-                        cookie.getValue().split("\\$")[1],params.getFirst("response_type"),
-                        cookie.getValue().split("#")[0],
-                        username,
-                        checkUserScopes(grant.get().getApprovedScopes(),cookie.getValue().split("#")[1].split("\\$")[0])
-                        ,params.getFirst("code_challenge"),params.getFirst("state")
-                );
-                return Response.seeOther(UriBuilder.fromUri(redirectURI).build()).build();
-            }else{
-                StreamingOutput stream = output -> {
-                    try (InputStream is = Objects.requireNonNull(getClass().getResource("/consent.html")).openStream()){
-                        String html = new String(is.readAllBytes());
-                        // Inject username into the consent page
-                        html = html.replace("id=\"username\" value=\"\"", "id=\"username\" value=\"" + username + "\"");
-                        output.write(html.getBytes());
+            
+            // Parse OAuth params from cookie: tenant#scope$redirectUri&responseType@codeChallenge!state
+            String cookieValue = cookie.getValue();
+            logger.info("LOGIN DEBUG - Cookie: " + cookieValue);
+            
+            String[] parts = cookieValue.split("\\$");
+            String clientId = cookieValue.split("#")[0];
+            String requestedScope = cookieValue.split("#")[1].split("\\$")[0];
+            String redirectUri = parts[1].split("&")[0];
+            
+            String responseType = "code";
+            String codeChallenge = null;
+            String state = null;
+            
+            if (parts.length > 1 && parts[1].contains("&")) {
+                String[] oauthParams = parts[1].split("&");
+                if (oauthParams.length > 1) {
+                    responseType = oauthParams[1].split("@")[0];
+                    if (oauthParams[1].contains("@")) {
+                        String afterAt = oauthParams[1].split("@")[1];
+                        codeChallenge = afterAt.split("!")[0];
+                        if (afterAt.contains("!")) {
+                            state = afterAt.split("!")[1];
+                        }
                     }
-                };
-                return Response.ok(stream).build();
+                }
             }
+            
+            logger.info("LOGIN DEBUG - Parsed state: '" + state + "'");
+            logger.info("LOGIN DEBUG - Code challenge: " + codeChallenge);
+            
+            // Login NEVER shows consent - always redirect directly
+            String redirectURI = buildActualRedirectURI(
+                    redirectUri, responseType,
+                    clientId,
+                    username,
+                    requestedScope,
+                    codeChallenge, state
+            );
+            logger.info("LOGIN DEBUG - Redirect URI: " + redirectURI);
+            return Response.seeOther(UriBuilder.fromUri(redirectURI).build()).build();
         } else {
             logger.info("Failure when authenticating identity:"+username);
-            URI location = UriBuilder.fromUri(cookie.getValue().split("\\$")[1])
-                    .queryParam("error", "User doesn't approved the request.")
-                    .queryParam("error_description", "User doesn't approved the request.")
+            URI location = UriBuilder.fromUri(cookie.getValue().split("\\$")[1].split("&")[0])
+                    .queryParam("error", "Invalid credentials.")
+                    .queryParam("error_description", "Invalid username or password.")
                     .build();
             return Response.seeOther(location).build();
         }
@@ -216,37 +268,97 @@ public class AuthenticationEndpoint {
                                  @FormParam("approved_scope") String scope,
                                  @FormParam("approval_status") String approvalStatus,
                                  @FormParam("username") String username){
-        // Parse cookie: tenant#scope$redirectUri&responseType@codeChallenge!state
-        String[] parts = cookie.getValue().split("\\$");
-        String redirectUri = parts[1].split("&")[0];
-        String[] oauthParams = parts[1].split("&");
-        String responseType = oauthParams.length > 1 ? oauthParams[1].split("@")[0] : "code";
-        String codeChallenge = oauthParams.length > 1 && oauthParams[1].contains("@") ? oauthParams[1].split("@")[1].split("!")[0] : null;
-        String state = oauthParams.length > 1 && oauthParams[1].contains("!") ? oauthParams[1].split("!")[1] : null;
-        
-        if ("NO".equals(approvalStatus)) {
-            var location = UriBuilder.fromUri(redirectUri)
-                    .queryParam("error", "User doesn't approved the request.")
-                    .queryParam("error_description", "User doesn't approved the request.")
-                    .build();
-            return Response.seeOther(location).build();
-        }
-        //==> YES
-        List<String> approvedScopes = Arrays.stream(scope.split(" ")).toList();
-        if (approvedScopes.isEmpty()) {
-            var location = UriBuilder.fromUri(redirectUri)
-                    .queryParam("error", "User hasn't approved the request.")
-                    .queryParam("error_description", "User hasn't approved the request.")
-                    .build();
-            return Response.seeOther(location).build();
-        }
         try {
-            String clientId = cookie.getValue().split("#")[0];
+            logger.info("=== CONSENT DEBUG ===");
+            logger.info("Cookie value: " + cookie.getValue());
+            logger.info("Approved scope: " + scope);
+            logger.info("Approval status: " + approvalStatus);
+            logger.info("Username from form: " + username);
+            
+            // Parse cookie: clientId#scope$redirectUri&responseType@codeChallenge!state%username
+            String cookieValue = cookie.getValue();
+            
+            // First split by % to get username (if it exists - added during registration)
+            String[] usernameParts = cookieValue.split("%");
+            String usernameFromCookie = (usernameParts.length > 1) ? usernameParts[1] : username;
+            String oauthPart = usernameParts[0];
+            
+            String[] parts = oauthPart.split("\\$");
+            
+            logger.info("Parts after $ split: " + String.join(" | ", parts));
+            logger.info("Username to use: " + usernameFromCookie);
+            
+            // Extract redirect URI and remaining OAuth params
+            String redirectUriAndParams = parts[1];
+            String[] uriAndParams = redirectUriAndParams.split("&", 2);
+            String redirectUri = uriAndParams[0];
+            
+            logger.info("Redirect URI: " + redirectUri);
+            logger.info("Remaining params: " + (uriAndParams.length > 1 ? uriAndParams[1] : "NONE"));
+            
+            // Parse responseType@codeChallenge!state
+            String responseType = "code";
+            String codeChallenge = "";
+            String state = "";
+            
+            if (uriAndParams.length > 1) {
+                String remainingParams = uriAndParams[1]; // "responseType@codeChallenge!state"
+                String[] typeAndRest = remainingParams.split("@", 2);
+                responseType = typeAndRest[0];
+                
+                if (typeAndRest.length > 1) {
+                    String challengeAndState = typeAndRest[1]; // "codeChallenge!state"
+                    String[] challengeStateParts = challengeAndState.split("!", 2);
+                    codeChallenge = challengeStateParts[0];
+                    if (challengeStateParts.length > 1) {
+                        state = challengeStateParts[1];
+                    }
+                }
+            }
+            
+            logger.info("Parsed - responseType: " + responseType + ", codeChallenge: " + codeChallenge + ", state: " + state);
+            
+            if ("NO".equals(approvalStatus)) {
+                var location = UriBuilder.fromUri(redirectUri)
+                        .queryParam("error", "User doesn't approved the request.")
+                        .queryParam("error_description", "User doesn't approved the request.")
+                        .build();
+                return Response.seeOther(location).build();
+            }
+            //==> YES
+            List<String> approvedScopes = Arrays.stream(scope.split(" ")).toList();
+            if (approvedScopes.isEmpty()) {
+                var location = UriBuilder.fromUri(redirectUri)
+                        .queryParam("error", "User hasn't approved the request.")
+                        .queryParam("error_description", "User hasn't approved the request.")
+                        .build();
+                return Response.seeOther(location).build();
+            }
+            
+            String clientId = cookieValue.split("#")[0];
+            
+            // Save the grant so user won't see consent page again - use username from cookie
+            phoenixIAMManager.saveGrant(clientId, usernameFromCookie, String.join(" ", approvedScopes));
+            
+            // Ensure we have a valid codeChallenge (can't be empty for PKCE)
+            if (codeChallenge == null || codeChallenge.isEmpty()) {
+                logger.warning("Missing code_challenge!");
+                var location = UriBuilder.fromUri(redirectUri)
+                        .queryParam("error", "invalid_request")
+                        .queryParam("error_description", "Missing code_challenge parameter")
+                        .build();
+                return Response.seeOther(location).build();
+            }
+            
             return Response.seeOther(UriBuilder.fromUri(buildActualRedirectURI(
                     redirectUri, responseType,
-                    clientId, username, String.join(" ", approvedScopes), codeChallenge, state
+                    clientId, usernameFromCookie, String.join(" ", approvedScopes), 
+                    codeChallenge, 
+                    state.isEmpty() ? null : state
             )).build()).build();
         } catch (Exception e) {
+            logger.severe("Error in grantConsent: " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
     }
