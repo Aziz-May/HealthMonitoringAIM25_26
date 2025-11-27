@@ -2,10 +2,10 @@ import {switchToSubdomain} from './util.js';
 
 var config = {
     client_id: "health-monitoring-app",
-    // This is where the user comes back after logging in (Your Frontend URL)
-    redirect_uri: "http://127.0.0.1:5500/app/", 
-    
-    // These point to your WildFly Backend
+    // Frontend callback URL - Update this to match your frontend server
+    redirect_uri: "http://127.0.0.1:5500/app/",
+
+    // IAM Backend Endpoints
     registration_endpoint: "http://localhost:8080/iam-1.0/rest-iam/register",
     authorization_endpoint: "http://localhost:8080/iam-1.0/rest-iam/authorize",
     token_endpoint: "http://localhost:8080/iam-1.0/rest-iam/oauth/token",
@@ -20,33 +20,31 @@ function parseJwt(token){
     }).join(''));
     return JSON.parse(jsonPayload);
 }
-export function checkSession(){	
-	let accessToken = sessionStorage.getItem('accessToken');
-	if(accessToken !== null){
-        // console.log("==================================")
-		let payload = parseJwt(accessToken);
-		if(payload.exp < Math.round(Date.now() / 1000)){
-			sessionStorage.removeItem('accessToken');
-			sessionStorage.removeItem('subject');
-			sessionStorage.removeItem('groups');
-			return false;
-		}
-		sessionStorage.setItem('subject',payload.sub);
-		sessionStorage.setItem('groups',payload.groups);
-		return true;
-	}
-	return false;
+
+export function checkSession(){
+    let accessToken = sessionStorage.getItem('accessToken');
+    if(accessToken !== null){
+        let payload = parseJwt(accessToken);
+        if(payload.exp < Math.round(Date.now() / 1000)){
+            sessionStorage.removeItem('accessToken');
+            sessionStorage.removeItem('subject');
+            sessionStorage.removeItem('groups');
+            return false;
+        }
+        sessionStorage.setItem('subject',payload.sub);
+        sessionStorage.setItem('groups',payload.groups);
+        return true;
+    }
+    return false;
 }
 
 //////////////////////////////////////////////////////////////////////
 // OAUTH REQUEST
 export function registerPKCEClickListener() {
-    // Ensure the 'signin' button exists before adding the event listener
     const signinButton = document.getElementById("signin");
     console.log("Registering PKCE click listener, button found:", signinButton !== null);
-    
+
     if (signinButton) {
-        // Initiate the PKCE Auth Code flow when the link is clicked
         signinButton.addEventListener("click", async function(e) {
             e.preventDefault();
             console.log("Login button clicked! Starting OAuth flow...");
@@ -55,7 +53,7 @@ export function registerPKCEClickListener() {
             var state = generateRandomString();
             localStorage.setItem("pkce_state", state);
 
-            // Create and store a new PKCE code_verifier (the plaintext random secret)
+            // Create and store a new PKCE code_verifier
             var code_verifier = generateRandomString();
             localStorage.setItem("pkce_code_verifier", code_verifier);
 
@@ -63,18 +61,16 @@ export function registerPKCEClickListener() {
             var code_challenge = await pkceChallengeFromVerifier(code_verifier);
 
             // Build the authorization URL
-            var url = config.authorization_endpoint 
+            var url = config.authorization_endpoint
                 + "?response_type=code"
-                + "&client_id=" +config.client_id
+                + "&client_id=" + encodeURIComponent(config.client_id)
                 + "&state=" + encodeURIComponent(state)
                 + "&scope=" + encodeURIComponent(config.requested_scopes)
-                + "&redirect_uri=" + config.redirect_uri
+                + "&redirect_uri=" + encodeURIComponent(config.redirect_uri)
                 + "&code_challenge=" + encodeURIComponent(code_challenge)
                 + "&code_challenge_method=S256";
 
             console.log("Redirecting to:", url);
-            
-            // Redirect to the authorization server
             window.location = url;
         });
     } else {
@@ -85,46 +81,39 @@ export function registerPKCEClickListener() {
 ////////////////////////////////////////////////////////////
 // REGISTRATION REQUEST
 export function registration() {
-    // Ensure the 'signup' button exists before adding the event listener
     const signupButton = document.getElementById("signup");
     console.log("Registering signup click listener, button found:", signupButton !== null);
-    
+
     if (signupButton) {
-        // Initiate the registration flow when the link is clicked
         signupButton.addEventListener("click", async function (e) {
             e.preventDefault();
-            console.log("Signup button clicked! Starting OAuth registration flow...");
+            console.log("Signup button clicked! Starting registration flow...");
 
-            // Check if registration endpoint is configured
             if (!config.registration_endpoint || config.registration_endpoint === "") {
-                alert("Registration is not available. Please contact the administrator to create an account.");
-                console.error("Registration endpoint is not configured in the IAM server");
+                alert("Registration is not available. Please contact the administrator.");
                 return;
             }
 
-            // Create and store a random "state" value
+            // Create and store OAuth parameters
             var state = generateRandomString();
             localStorage.setItem("pkce_state", state);
 
-            // Create and store a new PKCE code_verifier (the plaintext random secret)
             var code_verifier = generateRandomString();
             localStorage.setItem("pkce_code_verifier", code_verifier);
 
-            // Hash and base64-urlencode the secret to use as the challenge
             var code_challenge = await pkceChallengeFromVerifier(code_verifier);
 
-            // Build the registration URL with all OAuth parameters
-            var url = config.registration_endpoint 
-                + "?client_id=" + config.client_id
-                + "&redirect_uri=" + config.redirect_uri
+            // Build the registration URL with OAuth parameters
+            var url = config.registration_endpoint
+                + "?client_id=" + encodeURIComponent(config.client_id)
+                + "&redirect_uri=" + encodeURIComponent(config.redirect_uri)
                 + "&scope=" + encodeURIComponent(config.requested_scopes)
                 + "&response_type=code"
                 + "&code_challenge=" + encodeURIComponent(code_challenge)
+                + "&code_challenge_method=S256"
                 + "&state=" + encodeURIComponent(state);
 
             console.log("Redirecting to registration:", url);
-
-            // Redirect to the IAM server
             window.location = url;
         });
     } else {
@@ -132,11 +121,9 @@ export function registration() {
     }
 }
 
-
 //////////////////////////////////////////////////////////////////////
 // GENERAL HELPER FUNCTIONS
 
-// Make a POST request and parse the response as JSON
 function sendPostRequest(url, params, success, error) {
     var request = new XMLHttpRequest();
     request.open('POST', url, true);
@@ -148,10 +135,8 @@ function sendPostRequest(url, params, success, error) {
         } catch (e) {
             console.log("Error parsing response as JSON:", e);
         }
-        // console.log("Response Body:", request.response);
         if (request.status == 200) {
             success(request, body);
-            
         } else {
             error(request, body);
         }
@@ -168,47 +153,31 @@ function sendPostRequest(url, params, success, error) {
     request.send(body);
 }
 
-
-// Parse a query string into an object
-function parseQueryString(string) {
-    if(string == "") { return {}; }
-    var segments = string.split("&").map(s => s.split("=") );
-    var queryString = {};
-    segments.forEach(s => queryString[s[0]] = s[1]);
-    return queryString;
-}
-
-
 export function handlePKCERedirect(){
-    // console.log("Full URL:", window.location.href);  // Check the full URL
-    // console.log("Query String:", window.location.search);  // Check just the query string
     const urlParams = new URLSearchParams(window.location.search);
     let q = {};
     urlParams.forEach((value, key) => {
         q[key] = value;
     });
 
-    // console.log("Parsed Query String:", q);  // Verify parsed query params
-
     if (q.error) {
         alert("Error returned from authorization server: " + q.error);
         console.log(q.error + ": " + q.error_description);
+        return;
     }
-    // console.log(localStorage.getItem("pkce_code_verifier"))
-    // console.log(q.code);
 
     if (q.code) {
         const storedState = localStorage.getItem("pkce_state");
         console.log("State validation - Stored:", storedState, "Received:", q.state);
-        
+
         if (storedState !== q.state) {
             console.error("State mismatch! Stored:", storedState, "Received:", q.state);
-            alert("Invalid state - possible CSRF attack or session expired. Please try logging in again.");
+            alert("Invalid state - possible CSRF attack. Please try again.");
             localStorage.removeItem("pkce_state");
             localStorage.removeItem("pkce_code_verifier");
             return;
         }
-        
+
         sendPostRequest(config.token_endpoint, {
             grant_type: "authorization_code",
             code: q.code,
@@ -219,36 +188,36 @@ export function handlePKCERedirect(){
             console.log("Token received:", body);
             sessionStorage.setItem('accessToken', body.access_token);
             console.log("Token saved to sessionStorage");
+
             const signInEvent = new CustomEvent("signIn", { detail: body });
             document.dispatchEvent(signInEvent);
-            
-            // Clean up URL and reload to trigger router
+
+            // Clean up URL and reload
             console.log("Cleaning URL and reloading...");
             window.history.replaceState({}, document.title, "/app/");
             window.location.reload();
         }, function(request, error) {
             console.error("Token exchange failed:", error.error + ": " + error.error_description);
+            alert("Login failed: " + (error.error_description || error.error));
         });
-        
+
         localStorage.removeItem("pkce_state");
         localStorage.removeItem("pkce_code_verifier");
     }
 }
+
 export function handleProfilName() {
     let token = sessionStorage.getItem('accessToken');
 
-    // Check if token exists
     if (token) {
-        // Parse JWT to get username from the token payload
         try {
             let payload = parseJwt(token);
-            const username = payload.upn || payload.sub; // Use 'upn' or 'sub' from JWT
-            
-            // Update the UI with username
+            const username = payload.upn || payload.sub;
+
             const nameElement = document.getElementById('name');
             const userNameElement = document.getElementById('user-name');
             const profileNameElement = document.getElementById('profile-name');
-            
+
             if (nameElement) nameElement.innerText = `Hi ${username}!`;
             if (userNameElement) userNameElement.innerText = `${username}`;
             if (profileNameElement) profileNameElement.innerText = `${username}`;
@@ -260,36 +229,26 @@ export function handleProfilName() {
     }
 }
 
-
 //////////////////////////////////////////////////////////////////////
 // PKCE HELPER FUNCTIONS
 
-// Generate a secure random string using the browser crypto functions
 function generateRandomString() {
     var array = new Uint32Array(28);
     window.crypto.getRandomValues(array);
     return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
 }
 
-// Calculate the SHA256 hash of the input text. 
-// Returns a promise that resolves to an ArrayBuffer
 function sha256(plain) {
     const encoder = new TextEncoder();
     const data = encoder.encode(plain);
     return window.crypto.subtle.digest('SHA-256', data);
 }
 
-// Base64-urlencodes the input string
 function base64urlencode(str) {
-    // Convert the ArrayBuffer to string using Uint8 array to conver to what btoa accepts.
-    // btoa accepts chars only within ascii 0-255 and base64 encodes them.
-    // Then convert the base64 encoded to base64url encoded
-    //   (replace + with -, replace / with _, trim trailing =)
     return btoa(String.fromCharCode.apply(null, new Uint8Array(str)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// Return the base64-urlencoded sha256 hash for the PKCE challenge
 async function pkceChallengeFromVerifier(v) {
     let hashed = await sha256(v);
     return base64urlencode(hashed);
