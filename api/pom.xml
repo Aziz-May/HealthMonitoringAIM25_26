@@ -9,14 +9,38 @@
     <version>1.0</version>
     <packaging>war</packaging>
 
+    <name>Health Monitoring API</name>
+    <description>REST API for Health Monitoring System with MicroProfile JWT Authentication</description>
+
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Jakarta EE -->
         <jakartaee-api.version>11.0.0</jakartaee-api.version>
+
+        <!-- MicroProfile -->
         <microprofile.version>6.1</microprofile.version>
-        <jnosql.version>1.1.10</jnosql.version>
+
+        <!-- Database -->
+        <jnosql.mongodb.version>1.1.10</jnosql.mongodb.version>
         <mongodb.driver.version>5.6.0</mongodb.driver.version>
+        <!-- Jakarta NoSQL API Version -->
+        <jakarta.nosql.version>1.0.0-b7</jakarta.nosql.version>
+
+        <!-- JSON Processing -->
+        <jackson.version>2.16.0</jackson.version>
+
+        <!-- Testing -->
+        <junit-jupiter.version>5.10.1</junit-jupiter.version>
+        <mockito.version>5.20.0</mockito.version>
+
+        <!-- Plugins -->
+        <wildfly.plugin.version>5.0.1.Final</wildfly.plugin.version>
+        <maven.war.plugin.version>3.4.0</maven.war.plugin.version>
+        <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
+        <maven.surefire.plugin.version>3.2.2</maven.surefire.plugin.version>
     </properties>
 
     <dependencies>
@@ -28,7 +52,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- MicroProfile (For JWT Auth) -->
+        <!-- MicroProfile (includes JWT, Config, etc.) -->
         <dependency>
             <groupId>org.eclipse.microprofile</groupId>
             <artifactId>microprofile</artifactId>
@@ -37,20 +61,100 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Jakarta Data / NoSQL (MongoDB) -->
+        <!-- Jakarta NoSQL Document API (Required for DocumentTemplate) -->
+        <dependency>
+            <groupId>jakarta.nosql</groupId>
+            <artifactId>nosql-document</artifactId>
+            <version>${jakarta.nosql.version}</version>
+        </dependency>
+
+        <!-- MongoDB with Jakarta NoSQL Implementation -->
         <dependency>
             <groupId>org.eclipse.jnosql.databases</groupId>
             <artifactId>jnosql-mongodb</artifactId>
-            <version>${jnosql.version}</version>
+            <version>${jnosql.mongodb.version}</version>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
             <version>${mongodb.driver.version}</version>
         </dependency>
+
+        <!-- Jackson for JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- Testing Dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
-        <finalName>cot-api</finalName>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <!-- Compiler Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven.compiler.plugin.version}</version>
+                <configuration>
+                    <source>21</source>
+                    <target>21</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- WAR Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>${maven.war.plugin.version}</version>
+                <configuration>
+                    <failOnMissingWebXml>false</failOnMissingWebXml>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire Plugin for Tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.plugin.version}</version>
+            </plugin>
+
+            <!-- WildFly Plugin for Deployment -->
+            <plugin>
+                <groupId>org.wildfly.plugins</groupId>
+                <artifactId>wildfly-maven-plugin</artifactId>
+                <version>${wildfly.plugin.version}</version>
+                <configuration>
+                    <filename>${project.artifactId}.war</filename>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 </project>
