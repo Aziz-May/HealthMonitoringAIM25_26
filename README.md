@@ -8,13 +8,35 @@ A comprehensive Health Monitoring System featuring a Jakarta EE backend (IAM), a
 *   **`iam/`**: Identity and Access Management backend (Jakarta EE 11).
 *   **`docs/`**: Project documentation.
 
+## Features
+
+### Authentication & Authorization
+- **OAuth2 PKCE Flow**: Secure authorization code flow with S256 code challenge
+- **User Registration**: Create new accounts with password strength validation
+- **User Login**: Authenticate existing users with session management
+- **Consent Management**: One-time consent approval for scopes (appears only during registration)
+- **JWT Tokens**: Secure access and refresh tokens for API authorization
+
+### Frontend Validation
+- **Real-time Field Validation**: Instant feedback as users type
+- **Username Validation**: 3-50 characters, alphanumeric with _ and -
+- **Password Strength Indicator**: Visual bar showing Weak/Medium/Strong
+- **Password Requirements**: Minimum 8 characters with mix of letters, numbers, and symbols
+- **Confirm Password**: Ensures passwords match before submission
+- **Inline Error Messages**: Clear, user-friendly error display without page redirects
+
+### Security
+- **Argon2 Password Hashing**: Industry-standard secure password storage
+- **PKCE Protection**: Prevents authorization code interception attacks
+- **HTTP-Only Cookies**: Secure session management
+- **Input Sanitization**: HTML escaping to prevent XSS attacks
+
 ## Prerequisites
 
 *   **Java Development Kit (JDK)**: Version 21 or higher.
 *   **Maven**: Version 3.8 or higher.
 *   **WildFly Preview**: Version 38.0.1.Final (Jakarta EE 11 compatible).
 *   **MongoDB**: Version 5.0 or higher (running locally on port 27017).
-
 
 ## Setup Instructions
 
@@ -55,9 +77,26 @@ For detailed instructions on setting up the application server, please refer to 
 ## Usage
 
 1.  Open the frontend URL (`http://127.0.0.1:5500/app/`).
-2.  Click **Login** to sign in with `aziz` / `12345678!`.
+2.  Click **Login** to sign in with existing credentials.
 3.  Click **SignUp** to create a new account.
-4.  After login, you will be redirected to the Dashboard.
+    - Fill in username (3-50 characters, alphanumeric)
+    - Create a strong password (8+ characters, mix of uppercase, lowercase, numbers, symbols)
+    - Confirm your password
+    - Approve consent for requested permissions (one-time only)
+4.  After authentication, you will be redirected to the Dashboard.
+
+### Validation Features
+
+**Login Page:**
+- Username: Required, 3-50 characters
+- Password: Required, minimum 6 characters
+- Real-time error display with clear messages
+
+**Registration Page:**
+- Username: Required, 3-50 characters, alphanumeric with _ and -
+- Password: Required, minimum 8 characters with strength indicator
+- Confirm Password: Must match password
+- Visual password strength bar (Weak - Medium - Strong)
 
 ## Configuration
 
@@ -69,3 +108,19 @@ For detailed instructions on setting up the application server, please refer to 
     *   OAuth2 endpoints
     *   Client ID and Redirect URI
 
+## API Endpoints
+
+### Authentication
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/iam-1.0/rest-iam/login/authorization` | GET | Start OAuth2 authorization flow |
+| `/iam-1.0/rest-iam/login/authorization` | POST | Process login credentials |
+| `/iam-1.0/rest-iam/register` | POST | Register new user |
+| `/iam-1.0/rest-iam/login/authorization/consent` | POST | Process consent approval |
+| `/iam-1.0/rest-iam/token` | POST | Exchange authorization code for tokens |
+
+### Token Management
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/iam-1.0/rest-iam/token` | POST | Refresh access token |
+| `/iam-1.0/rest-iam/.well-known/jwks.json` | GET | Get JWK Set for token verification |
