@@ -9,10 +9,10 @@ import tn.supcom.cot.iam.controllers.repositories.GrantRepository;
 import tn.supcom.cot.iam.controllers.repositories.IdentityRepository;
 import tn.supcom.cot.iam.controllers.repositories.TenantRepository;
 import tn.supcom.cot.iam.entities.Grant;
-import tn.supcom.cot.iam.entities.GrantPK;
 import tn.supcom.cot.iam.entities.Identity;
 import tn.supcom.cot.iam.entities.Tenant;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Optional;
 
@@ -60,7 +60,7 @@ public class PhoenixIAMManager {
         return ret.toArray(new String[0]);
     }
 
-    public Identity createIdentity(String username, String password) {
+    public Identity createIdentity(String username, String password, String email, String phoneNumber, LocalDate birthDate) {
         if (identityRepository.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -68,6 +68,9 @@ public class PhoenixIAMManager {
         identity.setId(java.util.UUID.randomUUID().toString());
         identity.setUsername(username);
         identity.setPassword(tn.supcom.cot.iam.security.Argon2Utility.hash(password.toCharArray()));
+        identity.setEmail(email);
+        identity.setPhoneNumber(phoneNumber);
+        identity.setBirthDate(birthDate);
         identity.setRoles(1); // Default role (USER)
         identity.setProvidedScopes("resource.read resource.write"); // Default scopes
         

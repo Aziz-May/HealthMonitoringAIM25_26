@@ -257,6 +257,41 @@
                     >
                     <div class="field-error" id="confirmPasswordError"></div>
                 </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        required
+                        placeholder="Enter your email"
+                    >
+                    <div class="field-error" id="emailError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input 
+                        type="tel" 
+                        id="phone" 
+                        name="phone" 
+                        required
+                        placeholder="Enter your phone number"
+                    >
+                    <div class="field-error" id="phoneError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="birthdate">Date of Birth</label>
+                    <input 
+                        type="date" 
+                        id="birthdate" 
+                        name="birthdate" 
+                        required
+                    >
+                    <div class="field-error" id="birthdateError"></div>
+                </div>
                 
                 <!-- Hidden fields to pass OAuth parameters -->
                 <input type="hidden" name="client_id" id="client_id">
@@ -308,12 +343,18 @@
             const usernameInput = document.getElementById('username');
             const passwordInput = document.getElementById('password');
             const confirmPasswordInput = document.getElementById('confirm_password');
+            const emailInput = document.getElementById('email');
+            const phoneInput = document.getElementById('phone');
+            const birthdateInput = document.getElementById('birthdate');
             
             // Real-time validation
             usernameInput.addEventListener('blur', validateUsername);
             passwordInput.addEventListener('blur', validatePassword);
             passwordInput.addEventListener('input', updatePasswordStrength);
             confirmPasswordInput.addEventListener('blur', validateConfirmPassword);
+            emailInput.addEventListener('blur', validateEmail);
+            phoneInput.addEventListener('blur', validatePhone);
+            birthdateInput.addEventListener('blur', validateBirthdate);
             
             // Clear error on input
             usernameInput.addEventListener('input', function() {
@@ -324,6 +365,15 @@
             });
             confirmPasswordInput.addEventListener('input', function() {
                 clearFieldError('confirmPassword');
+            });
+            emailInput.addEventListener('input', function() {
+                clearFieldError('email');
+            });
+            phoneInput.addEventListener('input', function() {
+                clearFieldError('phone');
+            });
+            birthdateInput.addEventListener('input', function() {
+                clearFieldError('birthdate');
             });
             
             form.addEventListener('submit', function(e) {
@@ -336,8 +386,11 @@
                 const isUsernameValid = validateUsername();
                 const isPasswordValid = validatePassword();
                 const isConfirmValid = validateConfirmPassword();
+                const isEmailValid = validateEmail();
+                const isPhoneValid = validatePhone();
+                const isBirthdateValid = validateBirthdate();
                 
-                if (isUsernameValid && isPasswordValid && isConfirmValid) {
+                if (isUsernameValid && isPasswordValid && isConfirmValid && isEmailValid && isPhoneValid && isBirthdateValid) {
                     form.submit();
                 } else {
                     showError('Please fix the errors below');
@@ -421,6 +474,88 @@
             }
             
             clearFieldError('confirmPassword');
+            return true;
+        }
+        
+        function validateEmail() {
+            const emailInput = document.getElementById('email');
+            const email = emailInput.value.trim();
+            
+            if (email.length === 0) {
+                showFieldError('email', 'Email is required');
+                return false;
+            }
+            
+            // Basic email validation regex
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showFieldError('email', 'Please enter a valid email address');
+                return false;
+            }
+            
+            clearFieldError('email');
+            return true;
+        }
+        
+        function validatePhone() {
+            const phoneInput = document.getElementById('phone');
+            const phone = phoneInput.value.trim();
+            
+            if (phone.length === 0) {
+                showFieldError('phone', 'Phone number is required');
+                return false;
+            }
+            
+            // Allow digits, spaces, dashes, parentheses, and plus sign
+            const phoneRegex = /^[\d\s\-\(\)\+]+$/;
+            if (!phoneRegex.test(phone)) {
+                showFieldError('phone', 'Please enter a valid phone number');
+                return false;
+            }
+            
+            // Check minimum length (at least 8 digits)
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (digitsOnly.length < 8) {
+                showFieldError('phone', 'Phone number must have at least 8 digits');
+                return false;
+            }
+            
+            clearFieldError('phone');
+            return true;
+        }
+        
+        function validateBirthdate() {
+            const birthdateInput = document.getElementById('birthdate');
+            const birthdate = birthdateInput.value;
+            
+            if (!birthdate) {
+                showFieldError('birthdate', 'Date of birth is required');
+                return false;
+            }
+            
+            const birthDate = new Date(birthdate);
+            const today = new Date();
+            const minAge = 13; // Minimum age requirement
+            const maxAge = 120; // Maximum reasonable age
+            
+            // Calculate age
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            
+            if (age < minAge) {
+                showFieldError('birthdate', 'You must be at least ' + minAge + ' years old');
+                return false;
+            }
+            
+            if (age > maxAge) {
+                showFieldError('birthdate', 'Please enter a valid date of birth');
+                return false;
+            }
+            
+            clearFieldError('birthdate');
             return true;
         }
         

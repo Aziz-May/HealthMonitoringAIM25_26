@@ -19,6 +19,7 @@ import tn.supcom.cot.iam.entities.Identity;
 import tn.supcom.cot.iam.entities.Tenant;
 
 import java.lang.reflect.Field;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,8 +56,17 @@ class PhoenixIAMManagerTest {
         mockedConfigProvider = Mockito.mockStatic(ConfigProvider.class);
         Config mockConfig = Mockito.mock(Config.class);
         mockedConfigProvider.when(ConfigProvider::getConfig).thenReturn(mockConfig);
+        
+        // Mock role configuration
         Mockito.when(mockConfig.getValues("roles", String.class))
                 .thenReturn(List.of("customRole1", "customRole2"));
+        
+        // Mock Argon2 configuration values for cases where Argon2Utility is used
+        Mockito.when(mockConfig.getValue("argon2.saltLength", Integer.class)).thenReturn(16);
+        Mockito.when(mockConfig.getValue("argon2.hashLength", Integer.class)).thenReturn(32);
+        Mockito.when(mockConfig.getValue("argon2.iterations", Integer.class)).thenReturn(3);
+        Mockito.when(mockConfig.getValue("argon2.memory", Integer.class)).thenReturn(65536);
+        Mockito.when(mockConfig.getValue("argon2.threads", Integer.class)).thenReturn(1);
 
         // 2. CRITICAL FIX: Use Reflection to update Role maps.
         // Since RoleTest likely ran first, the Role class is already initialized with
@@ -290,5 +300,70 @@ class PhoenixIAMManagerTest {
         assertTrue(grant.isPresent());
         assertEquals(tenant.getId(), grant.get().getTenantId());
         assertEquals(identity.getId(), grant.get().getIdentityId());
+    }
+
+    // ==================== createIdentity Tests ====================
+
+    @Test
+    @DisplayName("Should create identity with all fields successfully")
+    void testCreateIdentitySuccess() {
+        String username = "newuser";
+        String password = "password123";
+        String email = "newuser@example.com";
+        String phoneNumber = "+1-555-123-4567";
+        LocalDate birthDate = LocalDate.of(1990, 5, 15);
+
+        when(identityRepository.findByUsername(username)).thenReturn(Optional.empty());
+        when(identityRepository.save(any(Identity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Identity result = iamManager.createIdentity(username, password, email, phoneNumber, birthDate);
+
+        assertNotNull(result);
+        assertNotNull(result.getId());
+        assertEquals(username, result.getUsername());
+        assertNotNull(result.getPassword()); // Password should be hashed
+        assertTrue(result.getPassword().startsWith("$argon2")); // Argon2 hash format
+        assertEquals(email, result.getEmail());
+        assertEquals(phoneNumber, result.getPhoneNumber());
+        assertEquals(birthDate, result.getBirthDate());
+        assertEquals(1L, result.getRoles()); // Default role
+        assertEquals("resource.read resource.write", result.getProvidedScopes());
+        
+        verify(identityRepository).findByUsername(username);
+        verify(identityRepository).save(any(Identity.class));
+    }
+
+    @Test
+    @DisplayName("Should throw exception when username already exists")
+    void testCreateIdentityDuplicateUsername() {
+        String username = "existinguser";
+        when(identityRepository.findByUsername(username)).thenReturn(Optional.of(testIdentity));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                iamManager.createIdentity(username, "password", "email@example.com", "+1234567890", LocalDate.of(1990, 1, 1))
+        );
+
+        verify(identityRepository).findByUsername(username);
+        verify(identityRepository, never()).save(any(Identity.class));
+    }
+
+    @Test
+    @DisplayName("Should create identity with null optional fields")
+    void testCreateIdentityWithNullOptionalFields() {
+        String username = "minimaluser";
+        String password = "password123";
+
+        when(identityRepository.findByUsername(username)).thenReturn(Optional.empty());
+        when(identityRepository.save(any(Identity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Identity result = iamManager.createIdentity(username, password, null, null, null);
+
+        assertNotNull(result);
+        assertEquals(username, result.getUsername());
+        assertNull(result.getEmail());
+        assertNull(result.getPhoneNumber());
+        assertNull(result.getBirthDate());
+        
+        verify(identityRepository).save(any(Identity.class));
     }
 }

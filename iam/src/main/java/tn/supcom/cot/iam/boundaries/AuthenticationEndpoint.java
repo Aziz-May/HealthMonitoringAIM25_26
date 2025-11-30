@@ -93,6 +93,9 @@ public class AuthenticationEndpoint {
             @FormParam("username") String username,
             @FormParam("password") String password,
             @FormParam("confirm_password") String confirmPassword,
+            @FormParam("email") String email,
+            @FormParam("phone") String phone,
+            @FormParam("birthdate") String birthdate,
             @FormParam("client_id") String clientId,
             @FormParam("redirect_uri") String redirectUri,
             @FormParam("scope") String scope,
@@ -103,9 +106,18 @@ public class AuthenticationEndpoint {
         try {
             // Validate passwords
             validatePasswords(password, confirmPassword);
+            
+            // Validate email
+            validateEmail(email);
+            
+            // Validate phone
+            validatePhone(phone);
+            
+            // Parse and validate birthdate
+            java.time.LocalDate birthDate = parseBirthdate(birthdate);
 
-            // Create identity
-            Identity identity = iamManager.createIdentity(username, password);
+            // Create identity with additional fields
+            Identity identity = iamManager.createIdentity(username, password, email, phone, birthDate);
             logger.info("Successfully registered user: " + username);
 
             // If OAuth parameters present, show consent
@@ -342,6 +354,51 @@ public class AuthenticationEndpoint {
         }
         if (password.length() < 8) {
             throw new InvalidRequestException("Password must be at least 8 characters");
+        }
+    }
+
+    private void validateEmail(String email) throws InvalidRequestException {
+        if (email == null || email.trim().isEmpty()) {
+            throw new InvalidRequestException("Email is required");
+        }
+        // Basic email validation
+        if (!email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            throw new InvalidRequestException("Invalid email format");
+        }
+    }
+
+    private void validatePhone(String phone) throws InvalidRequestException {
+        if (phone == null || phone.trim().isEmpty()) {
+            throw new InvalidRequestException("Phone number is required");
+        }
+        // Remove non-digits for length check
+        String digitsOnly = phone.replaceAll("\\D", "");
+        if (digitsOnly.length() < 8) {
+            throw new InvalidRequestException("Phone number must have at least 8 digits");
+        }
+    }
+
+    private java.time.LocalDate parseBirthdate(String birthdate) throws InvalidRequestException {
+        if (birthdate == null || birthdate.trim().isEmpty()) {
+            throw new InvalidRequestException("Date of birth is required");
+        }
+        try {
+            java.time.LocalDate birthDate = java.time.LocalDate.parse(birthdate);
+            java.time.LocalDate today = java.time.LocalDate.now();
+            
+            // Check minimum age (13 years)
+            if (birthDate.plusYears(13).isAfter(today)) {
+                throw new InvalidRequestException("You must be at least 13 years old");
+            }
+            
+            // Check maximum reasonable age (120 years)
+            if (birthDate.plusYears(120).isBefore(today)) {
+                throw new InvalidRequestException("Invalid date of birth");
+            }
+            
+            return birthDate;
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new InvalidRequestException("Invalid date format");
         }
     }
 
