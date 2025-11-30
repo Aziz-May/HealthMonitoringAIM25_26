@@ -21,8 +21,10 @@ class GrantTest {
     @Test
     @DisplayName("Should set and get id correctly")
     void testIdGetterSetter() {
-        grant.setId("grant-123");
-        assertEquals("grant-123", grant.getId());
+        String id = Grant.createId("tenant-123", "identity-456");
+        grant.setId(id);
+        assertEquals(id, grant.getId());
+        assertEquals("tenant-123:identity-456", grant.getId());
     }
 
     @Test
@@ -35,17 +37,10 @@ class GrantTest {
     @DisplayName("Should increment version when current version matches")
     void testVersionIncrement() {
         assertEquals(0L, grant.getVersion());
-        grant.setVersion(0L);
-        assertEquals(1L, grant.getVersion());
         grant.setVersion(1L);
+        assertEquals(1L, grant.getVersion());
+        grant.setVersion(2L);
         assertEquals(2L, grant.getVersion());
-    }
-
-    @Test
-    @DisplayName("Should throw IllegalStateException when version mismatch")
-    void testVersionMismatch() {
-        grant.setVersion(0L);
-        assertThrows(IllegalStateException.class, () -> grant.setVersion(0L));
     }
 
     @Test
@@ -95,17 +90,31 @@ class GrantTest {
     }
 
     @Test
+    @DisplayName("Should set composite key correctly")
+    void testCompositeKeyCreation() {
+        String id = Grant.createId("tenant-999", "identity-888");
+        
+        grant.setId(id);
+        
+        assertNotNull(grant.getId());
+        assertEquals("tenant-999:identity-888", grant.getId());
+    }
+
+    @Test
     @DisplayName("Should create complete grant object")
     void testCompleteGrantCreation() {
         LocalDateTime issuanceTime = LocalDateTime.of(2024, 1, 15, 10, 30);
 
-        grant.setId("grant-1");
+        String id = Grant.createId("tenant-1", "identity-1");
+        
+        grant.setId(id);
         grant.setTenantId("tenant-1");
         grant.setIdentityId("identity-1");
         grant.setApprovedScopes("openid profile email");
         grant.setIssuanceDateTime(issuanceTime);
 
-        assertEquals("grant-1", grant.getId());
+        assertNotNull(grant.getId());
+        assertEquals("tenant-1:identity-1", grant.getId());
         assertEquals("tenant-1", grant.getTenantId());
         assertEquals("identity-1", grant.getIdentityId());
         assertEquals("openid profile email", grant.getApprovedScopes());
@@ -158,13 +167,11 @@ class GrantTest {
     void testVersionConsistency() {
         assertEquals(0L, grant.getVersion());
 
-        grant.setVersion(0L);
+        grant.setVersion(1L);
         assertEquals(1L, grant.getVersion());
 
-        grant.setVersion(1L);
+        grant.setVersion(2L);
         assertEquals(2L, grant.getVersion());
-
-        assertThrows(IllegalStateException.class, () -> grant.setVersion(1L));
     }
 
     @Test

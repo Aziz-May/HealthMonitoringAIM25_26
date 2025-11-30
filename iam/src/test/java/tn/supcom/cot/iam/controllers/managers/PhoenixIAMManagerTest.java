@@ -107,7 +107,7 @@ class PhoenixIAMManagerTest {
         testIdentity.setRoles(0L);
 
         testGrant = new Grant();
-        testGrant.setId("grant-789");
+        testGrant.setId(Grant.createId("tenant-123", "identity-456"));
         testGrant.setTenantId("tenant-123");
         testGrant.setIdentityId("identity-456");
     }
@@ -190,7 +190,8 @@ class PhoenixIAMManagerTest {
         Optional<Grant> result = iamManager.findGrant("TestTenant", "identity-456");
 
         assertTrue(result.isPresent());
-        assertEquals("grant-789", result.get().getId());
+        assertNotNull(result.get().getId());
+        assertEquals("tenant-123:identity-456", result.get().getId());
         verify(tenantRepository).findByName("TestTenant");
         verify(grantRepository).findByTenantIdAndIdentityId("tenant-123", "identity-456");
     }

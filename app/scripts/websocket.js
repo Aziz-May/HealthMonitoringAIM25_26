@@ -1,3 +1,4 @@
+//import Paho from 'paho-mqtt'
 var broker = {
     hostname: "3f8df013054946d4ab9fb4775293070e.s1.eu.hivemq.cloud",
     port: 8884,

@@ -89,8 +89,9 @@ public class PhoenixIAMManager {
     }
     
     public Grant saveGrantForIdentity(String tenantId, String identityId, String approvedScopes) {
+        // Create the grant with composite string ID
         Grant grant = new Grant();
-        grant.setId(java.util.UUID.randomUUID().toString());
+        grant.setId(Grant.createId(tenantId, identityId));
         grant.setTenantId(tenantId);
         grant.setIdentityId(identityId);
         grant.setApprovedScopes(approvedScopes);

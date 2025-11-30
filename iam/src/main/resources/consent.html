@@ -186,7 +186,7 @@
                 Only approve if you trust this application. It will have access to the permissions you grant below.
             </div>
 
-            <form action="/iam-1.0/rest-iam/login/authorization/consent" method="POST" id="consentForm" onsubmit="updateScopes()">
+            <form action="/iam-1.0/rest-iam/login/authorization/consent" method="POST" id="consentForm">
                 <div class="permissions-section">
                     <h2>This app would like to:</h2>
                     
@@ -208,13 +208,14 @@
                 </div>
 
                 <input type="hidden" name="approved_scope" id="approved_scope" value="">
-                <input type="hidden" name="username" id="username" value="">
+                <input type="hidden" name="approval_status" id="approval_status" value="">
+                <input type="hidden" name="username" id="username" value="{{username}}">
                 
                 <div class="button-group">
-                    <button type="submit" name="approval_status" value="NO" class="btn btn-deny">
+                    <button type="button" onclick="handleDeny()" class="btn btn-deny">
                         Deny
                     </button>
-                    <button type="submit" name="approval_status" value="YES" class="btn btn-approve">
+                    <button type="button" onclick="handleApprove()" class="btn btn-approve">
                         Approve
                     </button>
                 </div>
@@ -228,6 +229,21 @@
             const checkboxes = document.querySelectorAll('input[name="scope_checkbox"]:checked');
             const scopes = Array.from(checkboxes).map(cb => cb.value).join(' ');
             document.getElementById('approved_scope').value = scopes;
+            return scopes;
+        }
+
+        function handleApprove() {
+            const scopes = updateScopes();
+            console.log('Approving with scopes:', scopes);
+            document.getElementById('approval_status').value = 'YES';
+            document.getElementById('consentForm').submit();
+        }
+
+        function handleDeny() {
+            console.log('Denying consent');
+            document.getElementById('approval_status').value = 'NO';
+            document.getElementById('approved_scope').value = ''; // Clear scopes on deny
+            document.getElementById('consentForm').submit();
         }
 
         // Initialize on page load

@@ -8,10 +8,10 @@ import java.time.LocalDateTime;
 
 
 @Entity
-public class Grant implements RootEntity<String> {
+public class Grant {
 
     @Id
-    private String id;
+    private String id;  // Composite key: tenantId:identityId
 
     @Column
     private long version=0L;
@@ -28,28 +28,27 @@ public class Grant implements RootEntity<String> {
     @Column
     private LocalDateTime issuanceDateTime;
 
-    @Override
     public String getId() {
         return id;
     }
 
-    @Override
     public void setId(String id) {
         this.id = id;
     }
 
-    @Override
+    /**
+     * Create composite ID from tenantId and identityId
+     */
+    public static String createId(String tenantId, String identityId) {
+        return tenantId + ":" + identityId;
+    }
+
     public long getVersion() {
         return version;
     }
 
-    @Override
     public void setVersion(long version) {
-        if (this.version != version) {
-            throw new IllegalStateException();
-        }
-
-        ++this.version;
+        this.version = version;
     }
 
     public String getTenantId() {

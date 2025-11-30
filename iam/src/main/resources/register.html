@@ -128,6 +128,72 @@
             font-size: 48px;
             margin-bottom: 10px;
         }
+
+        .error-message {
+            background: #fee;
+            border-left: 4px solid #dc3545;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #721c24;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .form-group input.error {
+            border-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .field-error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .field-error.show {
+            display: block;
+        }
+
+        .password-strength {
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .strength-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: #e1e8ed;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .strength-bar-fill {
+            height: 100%;
+            width: 0;
+            transition: width 0.3s, background-color 0.3s;
+        }
+
+        .strength-weak { background-color: #dc3545; width: 33%; }
+        .strength-medium { background-color: #ffc107; width: 66%; }
+        .strength-strong { background-color: #28a745; width: 100%; }
     </style>
 </head>
 <body>
@@ -139,6 +205,8 @@
         </div>
         
         <div class="login-body">
+            <div id="errorMessage" class="error-message"></div>
+            
             <div class="info-message">
                 Create a new account to access your health data.
             </div>
@@ -153,7 +221,10 @@
                         required 
                         autofocus
                         placeholder="Choose a username"
+                        minlength="3"
+                        maxlength="50"
                     >
+                    <div class="field-error" id="usernameError"></div>
                 </div>
                 
                 <div class="form-group">
@@ -164,7 +235,15 @@
                         name="password" 
                         required
                         placeholder="Choose a password"
+                        minlength="8"
                     >
+                    <div class="password-strength" id="passwordStrength" style="display: none;">
+                        <span id="strengthText">Password strength: </span>
+                        <div class="strength-bar">
+                            <div class="strength-bar-fill" id="strengthBar"></div>
+                        </div>
+                    </div>
+                    <div class="field-error" id="passwordError"></div>
                 </div>
 
                 <div class="form-group">
@@ -176,6 +255,7 @@
                         required
                         placeholder="Confirm your password"
                     >
+                    <div class="field-error" id="confirmPasswordError"></div>
                 </div>
                 
                 <!-- Hidden fields to pass OAuth parameters -->
@@ -200,6 +280,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             
+            // Check for error parameter
+            const errorParam = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+            
+            if (errorParam) {
+                showError(errorDescription || 'An error occurred. Please try again.');
+            }
+            
             // Set all OAuth parameters as hidden fields
             const clientId = urlParams.get('client_id');
             const redirectUri = urlParams.get('redirect_uri');
@@ -214,7 +302,191 @@
             if (responseType) document.getElementById('response_type').value = responseType;
             if (codeChallenge) document.getElementById('code_challenge').value = codeChallenge;
             if (state) document.getElementById('state').value = state;
+            
+            // Form validation
+            const form = document.getElementById('registerForm');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+            
+            // Real-time validation
+            usernameInput.addEventListener('blur', validateUsername);
+            passwordInput.addEventListener('blur', validatePassword);
+            passwordInput.addEventListener('input', updatePasswordStrength);
+            confirmPasswordInput.addEventListener('blur', validateConfirmPassword);
+            
+            // Clear error on input
+            usernameInput.addEventListener('input', function() {
+                clearFieldError('username');
+            });
+            passwordInput.addEventListener('input', function() {
+                clearFieldError('password');
+            });
+            confirmPasswordInput.addEventListener('input', function() {
+                clearFieldError('confirmPassword');
+            });
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Clear previous errors
+                document.getElementById('errorMessage').classList.remove('show');
+                
+                // Validate all fields
+                const isUsernameValid = validateUsername();
+                const isPasswordValid = validatePassword();
+                const isConfirmValid = validateConfirmPassword();
+                
+                if (isUsernameValid && isPasswordValid && isConfirmValid) {
+                    form.submit();
+                } else {
+                    showError('Please fix the errors below');
+                }
+            });
         });
+        
+        function validateUsername() {
+            const usernameInput = document.getElementById('username');
+            const username = usernameInput.value.trim();
+            
+            if (username.length === 0) {
+                showFieldError('username', 'Username is required');
+                return false;
+            }
+            
+            if (username.length < 3) {
+                showFieldError('username', 'Username must be at least 3 characters');
+                return false;
+            }
+            
+            if (username.length > 50) {
+                showFieldError('username', 'Username must be less than 50 characters');
+                return false;
+            }
+            
+            // Check for valid characters (alphanumeric, underscore, hyphen)
+            if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+                showFieldError('username', 'Username can only contain letters, numbers, _ and -');
+                return false;
+            }
+            
+            clearFieldError('username');
+            return true;
+        }
+        
+        function validatePassword() {
+            const passwordInput = document.getElementById('password');
+            const password = passwordInput.value;
+            
+            if (password.length === 0) {
+                showFieldError('password', 'Password is required');
+                return false;
+            }
+            
+            if (password.length < 8) {
+                showFieldError('password', 'Password must be at least 8 characters');
+                return false;
+            }
+            
+            // Check password strength
+            let strength = 0;
+            if (password.length >= 8) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/\d/.test(password)) strength++;
+            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
+            
+            if (strength < 2) {
+                showFieldError('password', 'Password is too weak. Use a mix of letters, numbers, and symbols');
+                return false;
+            }
+            
+            clearFieldError('password');
+            return true;
+        }
+        
+        function validateConfirmPassword() {
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            
+            if (confirmPassword.length === 0) {
+                showFieldError('confirmPassword', 'Please confirm your password');
+                return false;
+            }
+            
+            if (password !== confirmPassword) {
+                showFieldError('confirmPassword', 'Passwords do not match');
+                return false;
+            }
+            
+            clearFieldError('confirmPassword');
+            return true;
+        }
+        
+        function updatePasswordStrength() {
+            const password = document.getElementById('password').value;
+            const strengthDiv = document.getElementById('passwordStrength');
+            const strengthBar = document.getElementById('strengthBar');
+            const strengthText = document.getElementById('strengthText');
+            
+            if (password.length === 0) {
+                strengthDiv.style.display = 'none';
+                return;
+            }
+            
+            strengthDiv.style.display = 'block';
+            
+            let strength = 0;
+            let strengthLabel = 'Weak';
+            
+            if (password.length >= 8) strength++;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+            if (/\d/.test(password)) strength++;
+            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
+            
+            // Remove all classes
+            strengthBar.className = 'strength-bar-fill';
+            
+            if (strength <= 1) {
+                strengthBar.classList.add('strength-weak');
+                strengthLabel = 'Weak';
+            } else if (strength === 2 || strength === 3) {
+                strengthBar.classList.add('strength-medium');
+                strengthLabel = 'Medium';
+            } else {
+                strengthBar.classList.add('strength-strong');
+                strengthLabel = 'Strong';
+            }
+            
+            strengthText.textContent = 'Password strength: ' + strengthLabel;
+        }
+        
+        function showFieldError(fieldName, message) {
+            const input = document.getElementById(fieldName === 'confirmPassword' ? 'confirm_password' : fieldName);
+            const errorDiv = document.getElementById(fieldName + 'Error');
+            
+            input.classList.add('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+        
+        function clearFieldError(fieldName) {
+            const input = document.getElementById(fieldName === 'confirmPassword' ? 'confirm_password' : fieldName);
+            const errorDiv = document.getElementById(fieldName + 'Error');
+            
+            input.classList.remove('error');
+            errorDiv.classList.remove('show');
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            
+            // Scroll to top to show error
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
 
         function goToLogin() {
             // Try to construct login URL if we have params, otherwise just go back
