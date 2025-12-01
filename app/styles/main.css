@@ -236,6 +236,8 @@ body::before {
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     padding: 1rem 2rem;
     animation: slideDown 0.5s ease-out;
+    position: relative;
+    z-index: 1050;
 }
 
 @keyframes slideDown {
@@ -605,6 +607,8 @@ body::before {
     border: none;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-radius: 10px;
+    z-index: 1060 !important;
+    position: absolute;
 }
 
 .notification-header {

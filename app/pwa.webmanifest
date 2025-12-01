@@ -2,15 +2,17 @@
     "name": "Smart Health Monitoring System",
     "short_name": "HealthMonitor",
     "author": "Smart Health Team",
-    "start_url": "/",
-    "scope": "/",
+    "start_url": "./index.html",
+    "scope": "./",
+    "id": "/app/",
+    "description": "Real-time health monitoring with vital signs tracking, fall detection, and emergency alerts",
     "permissions": ["notifications","cookies","geolocation"],
     "display": "standalone",
-    "background":{
+    "background": {
         "service_worker": "./sw.js"
     },
-    "background_color": "#007bff",
-    "theme_color": "#0056b3",
+    "background_color": "#667eea",
+    "theme_color": "#667eea",
     "default_locale": "en",
     "orientation": "portrait-primary",
     "icons": [
