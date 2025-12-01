@@ -194,6 +194,103 @@
         .strength-weak { background-color: #dc3545; width: 33%; }
         .strength-medium { background-color: #ffc107; width: 66%; }
         .strength-strong { background-color: #28a745; width: 100%; }
+
+        .password-requirements {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .password-requirements.show {
+            display: block;
+        }
+
+        .password-requirements h4 {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .requirement {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            margin: 6px 0;
+            color: #666;
+        }
+
+        .requirement .icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+
+        .requirement.valid .icon {
+            background: #28a745;
+            color: white;
+        }
+
+        .requirement.valid .icon::before {
+            content: '✓';
+        }
+
+        .requirement.invalid .icon {
+            background: #dc3545;
+            color: white;
+        }
+
+        .requirement.invalid .icon::before {
+            content: '✗';
+        }
+
+        .requirement.valid {
+            color: #28a745;
+        }
+
+        .requirement.invalid {
+            color: #dc3545;
+        }
+
+        .strength-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-align: right;
+            margin-bottom: 4px;
+        }
+
+        .strength-label.weak { color: #dc3545; }
+        .strength-label.medium { color: #ffc107; }
+        .strength-label.strong { color: #28a745; }
+
+        .password-input-wrapper {
+            position: relative;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+            padding: 0;
+        }
+
+        .toggle-password:hover {
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -229,18 +326,44 @@
                 
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input 
-                        type="password" 
-                        id="password" 
-                        name="password" 
-                        required
-                        placeholder="Choose a password"
-                        minlength="8"
-                    >
+                    <div class="password-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            required
+                            placeholder="Choose a password"
+                            minlength="8"
+                        >
+                        <button type="button" class="toggle-password" onclick="togglePassword()">👁</button>
+                    </div>
                     <div class="password-strength" id="passwordStrength" style="display: none;">
-                        <span id="strengthText">Password strength: </span>
+                        <div class="strength-label" id="strengthLabel">Weak</div>
                         <div class="strength-bar">
                             <div class="strength-bar-fill" id="strengthBar"></div>
+                        </div>
+                    </div>
+                    <div class="password-requirements" id="passwordRequirements">
+                        <h4>Passwords must Contain:</h4>
+                        <div class="requirement" id="req-length">
+                            <span class="icon"></span>
+                            <span>8 character minimum</span>
+                        </div>
+                        <div class="requirement" id="req-lowercase">
+                            <span class="icon"></span>
+                            <span>one lowercase character (a-z)</span>
+                        </div>
+                        <div class="requirement" id="req-uppercase">
+                            <span class="icon"></span>
+                            <span>one uppercase character (A-Z)</span>
+                        </div>
+                        <div class="requirement" id="req-number">
+                            <span class="icon"></span>
+                            <span>one number (0-9)</span>
+                        </div>
+                        <div class="requirement" id="req-special">
+                            <span class="icon"></span>
+                            <span>one special symbol (!@#$%^&*)</span>
                         </div>
                     </div>
                     <div class="field-error" id="passwordError"></div>
@@ -436,20 +559,15 @@
                 return false;
             }
             
-            if (password.length < 8) {
-                showFieldError('password', 'Password must be at least 8 characters');
-                return false;
-            }
+            // Check all requirements
+            const hasLength = password.length >= 8;
+            const hasLowercase = /[a-z]/.test(password);
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasNumber = /\d/.test(password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
             
-            // Check password strength
-            let strength = 0;
-            if (password.length >= 8) strength++;
-            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-            if (/\d/.test(password)) strength++;
-            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
-            
-            if (strength < 2) {
-                showFieldError('password', 'Password is too weak. Use a mix of letters, numbers, and symbols');
+            if (!hasLength || !hasLowercase || !hasUppercase || !hasNumber || !hasSpecial) {
+                showFieldError('password', 'Password does not meet all requirements');
                 return false;
             }
             
@@ -563,38 +681,81 @@
             const password = document.getElementById('password').value;
             const strengthDiv = document.getElementById('passwordStrength');
             const strengthBar = document.getElementById('strengthBar');
-            const strengthText = document.getElementById('strengthText');
+            const strengthLabel = document.getElementById('strengthLabel');
+            const requirementsDiv = document.getElementById('passwordRequirements');
             
             if (password.length === 0) {
                 strengthDiv.style.display = 'none';
+                requirementsDiv.classList.remove('show');
                 return;
             }
             
             strengthDiv.style.display = 'block';
+            requirementsDiv.classList.add('show');
             
+            // Check individual requirements
+            const hasLength = password.length >= 8;
+            const hasLowercase = /[a-z]/.test(password);
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasNumber = /\d/.test(password);
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+            
+            // Update requirement indicators
+            updateRequirement('req-length', hasLength);
+            updateRequirement('req-lowercase', hasLowercase);
+            updateRequirement('req-uppercase', hasUppercase);
+            updateRequirement('req-number', hasNumber);
+            updateRequirement('req-special', hasSpecial);
+            
+            // Calculate strength
             let strength = 0;
-            let strengthLabel = 'Weak';
-            
-            if (password.length >= 8) strength++;
-            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
-            if (/\d/.test(password)) strength++;
-            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
+            if (hasLength) strength++;
+            if (hasLowercase) strength++;
+            if (hasUppercase) strength++;
+            if (hasNumber) strength++;
+            if (hasSpecial) strength++;
             
             // Remove all classes
             strengthBar.className = 'strength-bar-fill';
+            strengthLabel.className = 'strength-label';
             
-            if (strength <= 1) {
+            if (strength <= 2) {
                 strengthBar.classList.add('strength-weak');
-                strengthLabel = 'Weak';
-            } else if (strength === 2 || strength === 3) {
+                strengthLabel.classList.add('weak');
+                strengthLabel.textContent = 'Weak';
+            } else if (strength === 3 || strength === 4) {
                 strengthBar.classList.add('strength-medium');
-                strengthLabel = 'Medium';
+                strengthLabel.classList.add('medium');
+                strengthLabel.textContent = 'Medium';
             } else {
                 strengthBar.classList.add('strength-strong');
-                strengthLabel = 'Strong';
+                strengthLabel.classList.add('strong');
+                strengthLabel.textContent = 'Strong';
             }
+        }
+        
+        function updateRequirement(id, isValid) {
+            const element = document.getElementById(id);
+            if (isValid) {
+                element.classList.remove('invalid');
+                element.classList.add('valid');
+            } else {
+                element.classList.remove('valid');
+                element.classList.add('invalid');
+            }
+        }
+        
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleBtn = document.querySelector('.toggle-password');
             
-            strengthText.textContent = 'Password strength: ' + strengthLabel;
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '👁';
+            }
         }
         
         function showFieldError(fieldName, message) {
