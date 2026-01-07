@@ -17,9 +17,10 @@ import { toggleDevice } from './websocket.js';
                 
                 // Add event listener for the logout button
                 logoutButton.addEventListener('click', function() {
-                    sessionStorage.removeItem('accessToken'); // Remove token from sessionStorage
+                   // sessionStorage.removeItem('accessToken'); // Remove token from sessionStorage
+                    sessionStorage.clear();
                     profile.classList.add("d-none"); // Hide the button
-                    console.log("Logged out and token removed.");
+                    console.log("Logged out and token removed1.");
                     
                     // Clear main content and show welcome page
                     let mainContent = document.getElementById('mainElem');
