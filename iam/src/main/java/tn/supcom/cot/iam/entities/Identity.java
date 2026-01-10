@@ -6,14 +6,15 @@ import jakarta.nosql.Id;
 
 import java.security.Principal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
-public class Identity implements RootEntity<String>,Principal {
+public class Identity implements RootEntity<String>, Principal {
     @Id
     private String id;
 
     @Column
-    private long version=0L;
+    private long version = 0L;
 
     @Column
     private String username;
@@ -36,6 +37,17 @@ public class Identity implements RootEntity<String>,Principal {
     @Column
     private String providedScopes;
 
+    // --- NOUVEAUX CHAMPS POUR L'ACTIVATION ---
+    @Column
+    private boolean accountActivated = false;
+
+    @Column
+    private String activationCode;
+
+    @Column
+    private LocalDateTime activationCodeExpiresAt;
+    // -----------------------------------------
+
     public String getId() {
         return id;
     }
@@ -52,7 +64,6 @@ public class Identity implements RootEntity<String>,Principal {
         if (this.version != version) {
             throw new IllegalStateException();
         }
-
         ++this.version;
     }
 
@@ -68,6 +79,7 @@ public class Identity implements RootEntity<String>,Principal {
     public String getName() {
         return username;
     }
+
     public String getPassword() {
         return password;
     }
@@ -116,6 +128,28 @@ public class Identity implements RootEntity<String>,Principal {
         this.providedScopes = providedScopes;
     }
 
+    // --- Getters/Setters pour Activation ---
+    public boolean isAccountActivated() {
+        return accountActivated;
+    }
 
+    public void setAccountActivated(boolean accountActivated) {
+        this.accountActivated = accountActivated;
+    }
 
+    public String getActivationCode() {
+        return activationCode;
+    }
+
+    public void setActivationCode(String activationCode) {
+        this.activationCode = activationCode;
+    }
+
+    public LocalDateTime getActivationCodeExpiresAt() {
+        return activationCodeExpiresAt;
+    }
+
+    public void setActivationCodeExpiresAt(LocalDateTime activationCodeExpiresAt) {
+        this.activationCodeExpiresAt = activationCodeExpiresAt;
+    }
 }

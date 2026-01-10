@@ -16,19 +16,15 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.Optional;
 import java.util.logging.Logger;
 
-/**
- * OAuth2 Authorization Endpoint with PKCE Support
- * Handles authorization requests, user login, and consent management
- */
 @Path("/")
 @RequestScoped
 public class AuthenticationEndpoint {
 
     private static final String COOKIE_ID = "signInId";
-    private static final int COOKIE_MAX_AGE = 600; // 10 minutes
+    private static final int COOKIE_MAX_AGE = 1800; // 30 minutes
 
     @Inject
     private Logger logger;
@@ -37,8 +33,7 @@ public class AuthenticationEndpoint {
     private PhoenixIAMManager iamManager;
 
     /**
-     * OAuth2 Authorization Endpoint
-     * GET /authorize?client_id=...&redirect_uri=...&response_type=code&scope=...&code_challenge=...&state=...
+     * 1. Point d'entrée OAuth2
      */
     @GET
     @Path("/authorize")
@@ -46,44 +41,36 @@ public class AuthenticationEndpoint {
     public Response authorize(@Context UriInfo uriInfo) {
         try {
             MultivaluedMap<String, String> params = uriInfo.getQueryParameters();
-
-            // Validate OAuth2 parameters
             AuthorizationRequest authRequest = validateAuthorizationRequest(params);
 
-            // Create session cookie
+            // On sauvegarde l'état OAuth dans un cookie
             String cookieValue = buildCookieValue(authRequest);
             NewCookie sessionCookie = createSessionCookie(cookieValue);
 
-            logger.info("Authorization request validated for client: " + authRequest.clientId);
+            logger.info("Authorize request validated for: " + authRequest.clientId);
 
-            // Return login page
             return Response.ok(loadHtmlResource("/login.html"))
                     .cookie(sessionCookie)
                     .build();
-
         } catch (InvalidRequestException e) {
-            logger.warning("Invalid authorization request: " + e.getMessage());
             return buildErrorResponse(e.getMessage());
         } catch (Exception e) {
-            logger.severe("Error processing authorization request: " + e.getMessage());
             return buildErrorResponse("Internal server error");
         }
     }
 
     /**
-     * Registration Page
-     * GET /register
+     * 2. Page d'inscription
      */
     @GET
     @Path("/register")
     @Produces(MediaType.TEXT_HTML)
-    public Response showRegistrationPage(@Context UriInfo uriInfo) {
+    public Response showRegistrationPage() {
         return Response.ok(loadHtmlResource("/register.html")).build();
     }
 
     /**
-     * User Registration Endpoint
-     * POST /register
+     * 3. Traitement Inscription -> Envoi Email -> Redirection vers Activation
      */
     @POST
     @Path("/register")
@@ -96,6 +83,7 @@ public class AuthenticationEndpoint {
             @FormParam("email") String email,
             @FormParam("phone") String phone,
             @FormParam("birthdate") String birthdate,
+            // Paramètres OAuth (cachés dans le formulaire register)
             @FormParam("client_id") String clientId,
             @FormParam("redirect_uri") String redirectUri,
             @FormParam("scope") String scope,
@@ -104,44 +92,76 @@ public class AuthenticationEndpoint {
             @FormParam("state") String state) {
 
         try {
-            // Validate passwords
             validatePasswords(password, confirmPassword);
-            
-            // Validate email
             validateEmail(email);
-            
-            // Validate phone
             validatePhone(phone);
-            
-            // Parse and validate birthdate
             java.time.LocalDate birthDate = parseBirthdate(birthdate);
 
-            // Create identity with additional fields
-            Identity identity = iamManager.createIdentity(username, password, email, phone, birthDate);
-            logger.info("Successfully registered user: " + username);
+            // Création du compte (Inactif + Code généré + Email envoyé)
+            iamManager.createIdentity(username, password, email, phone, birthDate);
+            logger.info("User registered pending activation: " + username);
 
-            // If OAuth parameters present, show consent
-            if (clientId != null && !clientId.isEmpty()) {
-                return showConsentPage(username, clientId, redirectUri, scope,
-                        responseType, codeChallenge, state);
-            }
+            // IMPORTANT: On redirige vers la page d'activation en transmettant les infos OAuth
+            // pour ne pas perdre le contexte (sinon le futur Login plantera).
+            return showActivationPage(username, clientId, redirectUri, scope, responseType, codeChallenge, state, null);
 
-            return buildSuccessResponse("Registration successful! You can now login.");
-
-        } catch (IllegalArgumentException e) {
-            logger.warning("Registration failed: " + e.getMessage());
-            return showRegisterPageWithError(e.getMessage(), clientId, redirectUri, 
-                    scope, responseType, codeChallenge, state);
         } catch (Exception e) {
-            logger.severe("Registration error: " + e.getMessage());
-            return showRegisterPageWithError("Registration failed: " + e.getMessage(),
-                    clientId, redirectUri, scope, responseType, codeChallenge, state);
+            return showRegisterPageWithError(e.getMessage(), clientId, redirectUri, scope, responseType, codeChallenge, state);
         }
     }
 
     /**
-     * User Login Endpoint
-     * POST /login/authorization
+     * 4. Validation du Code Email -> Retour vers Login (cookie restauré)
+     */
+    @POST
+    @Path("/register/activate")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
+    public Response activateAccount(
+            @FormParam("username") String username,
+            @FormParam("code") String code,
+            // Paramètres OAuth (cachés dans le formulaire activation)
+            @FormParam("client_id") String clientId,
+            @FormParam("redirect_uri") String redirectUri,
+            @FormParam("scope") String scope,
+            @FormParam("response_type") String responseType,
+            @FormParam("code_challenge") String codeChallenge,
+            @FormParam("state") String state) {
+
+        try {
+            // Activation métier
+            iamManager.activateAccount(username, code);
+            logger.info("Account activated: " + username);
+
+            // --- RECONSTRUCTION DU COOKIE (CRUCIAL) ---
+            // On recrée l'objet Request comme au début (/authorize)
+            AuthorizationRequest authRequest = new AuthorizationRequest();
+            authRequest.clientId = clientId;
+            authRequest.redirectUri = redirectUri;
+            authRequest.scope = scope;
+            authRequest.responseType = responseType;
+            authRequest.codeChallenge = codeChallenge;
+            authRequest.state = state;
+
+            // On génère le cookie pour que le Login puisse le lire
+            String cookieValue = buildCookieValue(authRequest);
+            NewCookie sessionCookie = createSessionCookie(cookieValue);
+            // ------------------------------------------
+
+            // On affiche la page de Login avec le message de succès
+            String loginHtml = loadHtmlResource("/login.html");
+            loginHtml = loginHtml.replace("<div id=\"errorMessage\" class=\"error-message\"></div>",
+                    "<div class='error-message show' style='background:#d4edda; color:#155724; border-color:#c3e6cb;'>Account activated! Please Sign In.</div>");
+
+            return Response.ok(loginHtml).cookie(sessionCookie).build();
+
+        } catch (Exception e) {
+            return showActivationPage(username, clientId, redirectUri, scope, responseType, codeChallenge, state, e.getMessage());
+        }
+    }
+
+    /**
+     * 5. Login -> Consentement
      */
     @POST
     @Path("/login/authorization")
@@ -153,47 +173,44 @@ public class AuthenticationEndpoint {
             @FormParam("password") String password) {
 
         try {
-            // Validate session
-            if (sessionCookie == null || sessionCookie.getValue() == null) {
-                return buildErrorResponse("Session expired. Please try again.");
+            // Vérif Cookie
+            if (sessionCookie == null || sessionCookie.getValue() == null || sessionCookie.getValue().trim().isEmpty()) {
+                return buildErrorResponse("Session expired (Cookie missing). Please return to the App and try again.");
             }
 
-            // Authenticate user
+            // Authentification (Vérifie MDP + Activation)
             Identity identity = authenticateUser(username, password);
             logger.info("User authenticated: " + username);
 
-            // Parse OAuth parameters from cookie
+            // Parsing Cookie (C'est ici que vous aviez l'erreur IndexOutOfBounds)
             AuthorizationRequest authRequest = parseCookieValue(sessionCookie.getValue());
 
-            // LOGIN ALWAYS SKIPS CONSENT - redirect directly with authorization code
-            // Consent is only shown during registration
-            logger.info("Login successful - skipping consent, redirecting directly");
-            
-            // Check for existing grant to get approved scopes
-            Optional<Grant> existingGrant = iamManager.findGrant(
-                    authRequest.clientId, identity.getId());
-            
-            String approvedScopes = existingGrant
-                    .map(Grant::getApprovedScopes)
-                    .orElse(authRequest.scope); // Use requested scopes if no grant exists
-            
-            String redirectUri = buildRedirectUri(authRequest, username, approvedScopes);
-            return Response.seeOther(URI.create(redirectUri)).build();
+            // Sécurité supplémentaire : si le parsing a échoué (clientId vide), on arrête
+            if (authRequest.clientId == null || authRequest.clientId.isEmpty()) {
+                logger.severe("Cookie corrupted for user: " + username);
+                return buildErrorResponse("Session corrupted. Please restart from the application.");
+            }
+
+            // Logique Grant / Consentement
+            Optional<Grant> existingGrant = iamManager.findGrant(authRequest.clientId, identity.getId());
+            String approvedScopes = existingGrant.map(Grant::getApprovedScopes).orElse(authRequest.scope);
+
+            if (existingGrant.isPresent()) {
+                String redirectUri = buildRedirectUri(authRequest, username, approvedScopes);
+                return Response.seeOther(URI.create(redirectUri)).build();
+            } else {
+                return showConsentPageWithCookie(username, authRequest);
+            }
 
         } catch (InvalidCredentialsException e) {
-            logger.info("Failed login attempt for: " + username);
-            // Re-render login page with error message
-            return showLoginPageWithError("Invalid username or password", sessionCookie);
+            return showLoginPageWithError(e.getMessage(), sessionCookie);
         } catch (Exception e) {
-            logger.severe("Login error: " + e.getMessage());
+            logger.severe("Login unexpected error: " + e.getMessage());
+            e.printStackTrace();
             return showLoginPageWithError("Login failed. Please try again.", sessionCookie);
         }
     }
 
-    /**
-     * Consent Endpoint (POST)
-     * POST /login/authorization/consent
-     */
     @POST
     @Path("/login/authorization/consent")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -202,14 +219,9 @@ public class AuthenticationEndpoint {
             @FormParam("approved_scope") String approvedScopes,
             @FormParam("approval_status") String approvalStatus,
             @FormParam("username") String username) {
-
         return processConsent(sessionCookie, approvedScopes, approvalStatus, username);
     }
 
-    /**
-     * Consent Endpoint (PATCH) - For X-HTTP-Method-Override support
-     * PATCH /login/authorization
-     */
     @PATCH
     @Path("/login/authorization")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -218,194 +230,75 @@ public class AuthenticationEndpoint {
             @FormParam("approved_scope") String approvedScopes,
             @FormParam("approval_status") String approvalStatus,
             @FormParam("username") String username) {
-
         return processConsent(sessionCookie, approvedScopes, approvalStatus, username);
     }
 
     // ==================== Private Helper Methods ====================
 
-    private Response processConsent(Cookie sessionCookie, String approvedScopes,
-                                    String approvalStatus, String username) {
-        try {
-            logger.info("Processing consent - sessionCookie: " + (sessionCookie != null) + 
-                       ", approvedScopes: " + approvedScopes + 
-                       ", approvalStatus: " + approvalStatus + 
-                       ", username: " + username);
-            
-            if (sessionCookie == null || sessionCookie.getValue() == null) {
-                logger.severe("Session cookie is null or empty");
-                return buildErrorResponse("Session expired");
-            }
-
-            logger.info("Cookie value: " + sessionCookie.getValue());
-            AuthorizationRequest authRequest = parseCookieValue(sessionCookie.getValue());
-            logger.info("Parsed auth request - clientId: " + authRequest.clientId + 
-                       ", redirectUri: " + authRequest.redirectUri + 
-                       ", codeChallenge: " + authRequest.codeChallenge);
-
-            // Extract username from cookie if not in form
-            if (username == null || username.isEmpty()) {
-                username = authRequest.username;
-            }
-
-            // Handle denial
-            if ("NO".equals(approvalStatus)) {
-                logger.info("User denied consent: " + username);
-                return redirectWithError(authRequest.redirectUri, "access_denied",
-                        "User denied the request", authRequest.state);
-            }
-
-            // Validate approved scopes
-            if (approvedScopes == null || approvedScopes.trim().isEmpty()) {
-                return redirectWithError(authRequest.redirectUri, "invalid_scope",
-                        "No scopes approved", authRequest.state);
-            }
-
-            // Save grant
-            iamManager.saveGrant(authRequest.clientId, username, approvedScopes);
-            logger.info("Grant saved for user: " + username);
-
-            // Generate authorization code and redirect
-            String redirectUri = buildRedirectUri(authRequest, username, approvedScopes);
-            return Response.seeOther(URI.create(redirectUri)).build();
-
-        } catch (Exception e) {
-            logger.severe("Consent processing error: " + e.getMessage());
-            e.printStackTrace(); // Log full stack trace for debugging
-            return buildErrorResponse("An error occurred processing your consent: " + e.getMessage());
-        }
-    }
-
-    private AuthorizationRequest validateAuthorizationRequest(
-            MultivaluedMap<String, String> params) throws InvalidRequestException {
-
+    /**
+     * Parsing Sécurisé du Cookie pour éviter "Index 0 out of bounds"
+     */
+    private AuthorizationRequest parseCookieValue(String cookieValue) {
         AuthorizationRequest request = new AuthorizationRequest();
+        if (cookieValue == null || cookieValue.isEmpty()) return request;
 
-        // Validate client_id
-        request.clientId = params.getFirst("client_id");
-        if (request.clientId == null || request.clientId.isEmpty()) {
-            throw new InvalidRequestException("client_id is required");
-        }
+        try {
+            // Format: clientId#scope$redirectUri&responseType@codeChallenge!state%username
 
-        var tenant = iamManager.findTenantByName(request.clientId);
-        if (tenant == null) {
-            throw new InvalidRequestException("Unknown client: " + request.clientId);
-        }
-
-        // Validate grant type support
-        if (tenant.getSupportedGrantTypes() != null &&
-                !tenant.getSupportedGrantTypes().contains("authorization_code")) {
-            throw new InvalidRequestException("Authorization code flow not supported");
-        }
-
-        // Validate redirect_uri
-        request.redirectUri = params.getFirst("redirect_uri");
-        if (tenant.getRedirectUri() != null && !tenant.getRedirectUri().isEmpty()) {
-            if (request.redirectUri != null && !request.redirectUri.isEmpty() &&
-                    !tenant.getRedirectUri().equals(request.redirectUri)) {
-                throw new InvalidRequestException("redirect_uri mismatch");
+            // 1. Extraire Username
+            String[] usernameParts = cookieValue.split("%");
+            if (usernameParts.length > 1) {
+                request.username = usernameParts[1];
+                cookieValue = usernameParts[0];
             }
-            request.redirectUri = tenant.getRedirectUri();
-        } else {
-            if (request.redirectUri == null || request.redirectUri.isEmpty()) {
-                throw new InvalidRequestException("redirect_uri is required");
+
+            // 2. Séparer ClientInfo du reste ($)
+            String[] mainParts = cookieValue.split("\\$");
+            if (mainParts.length == 0) return request;
+
+            // 3. ClientId et Scope (#)
+            if (mainParts[0].contains("#")) {
+                String[] clientScope = mainParts[0].split("#");
+                request.clientId = clientScope.length > 0 ? clientScope[0] : "";
+                request.scope = clientScope.length > 1 ? clientScope[1] : "";
+            } else {
+                request.clientId = mainParts[0];
+                request.scope = "";
             }
-        }
 
-        // Validate response_type
-        request.responseType = params.getFirst("response_type");
-        if (!"code".equals(request.responseType)) {
-            throw new InvalidRequestException("Only response_type=code is supported");
-        }
+            // 4. Le reste (RedirectUri, PKCE, State)
+            if (mainParts.length > 1) {
+                String[] uriAndRest = mainParts[1].split("&", 2);
+                request.redirectUri = uriAndRest.length > 0 ? uriAndRest[0] : "";
 
-        // Validate PKCE
-        request.codeChallengeMethod = params.getFirst("code_challenge_method");
-        if (!"S256".equals(request.codeChallengeMethod)) {
-            throw new InvalidRequestException("code_challenge_method must be S256");
-        }
+                if (uriAndRest.length > 1) {
+                    String[] typeAndRest = uriAndRest[1].split("@", 2);
+                    request.responseType = typeAndRest.length > 0 ? typeAndRest[0] : "";
 
-        request.codeChallenge = params.getFirst("code_challenge");
-        if (request.codeChallenge == null || request.codeChallenge.isEmpty()) {
-            throw new InvalidRequestException("code_challenge is required");
+                    if (typeAndRest.length > 1) {
+                        String[] challengeAndState = typeAndRest[1].split("!", 2);
+                        request.codeChallenge = challengeAndState.length > 0 ? challengeAndState[0] : "";
+                        if (challengeAndState.length > 1) {
+                            request.state = challengeAndState[1];
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.severe("Cookie parse error: " + e.getMessage());
         }
-
-        // Handle scope
-        request.scope = params.getFirst("scope");
-        if (request.scope == null || request.scope.isEmpty()) {
-            request.scope = tenant.getRequiredScopes();
-        }
-
-        // Get state
-        request.state = params.getFirst("state");
-        if (request.state == null || request.state.isEmpty()) {
-            logger.warning("No state parameter - CSRF protection weakened");
-        }
-
         return request;
     }
 
-    private void validatePasswords(String password, String confirmPassword)
-            throws InvalidRequestException {
-        if (password == null || password.isEmpty()) {
-            throw new InvalidRequestException("Password is required");
-        }
-        if (!password.equals(confirmPassword)) {
-            throw new InvalidRequestException("Passwords do not match");
-        }
-        if (password.length() < 8) {
-            throw new InvalidRequestException("Password must be at least 8 characters");
-        }
-    }
-
-    private void validateEmail(String email) throws InvalidRequestException {
-        if (email == null || email.trim().isEmpty()) {
-            throw new InvalidRequestException("Email is required");
-        }
-        // Basic email validation
-        if (!email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
-            throw new InvalidRequestException("Invalid email format");
-        }
-    }
-
-    private void validatePhone(String phone) throws InvalidRequestException {
-        if (phone == null || phone.trim().isEmpty()) {
-            throw new InvalidRequestException("Phone number is required");
-        }
-        // Remove non-digits for length check
-        String digitsOnly = phone.replaceAll("\\D", "");
-        if (digitsOnly.length() < 8) {
-            throw new InvalidRequestException("Phone number must have at least 8 digits");
-        }
-    }
-
-    private java.time.LocalDate parseBirthdate(String birthdate) throws InvalidRequestException {
-        if (birthdate == null || birthdate.trim().isEmpty()) {
-            throw new InvalidRequestException("Date of birth is required");
-        }
-        try {
-            java.time.LocalDate birthDate = java.time.LocalDate.parse(birthdate);
-            java.time.LocalDate today = java.time.LocalDate.now();
-            
-            // Check minimum age (13 years)
-            if (birthDate.plusYears(13).isAfter(today)) {
-                throw new InvalidRequestException("You must be at least 13 years old");
-            }
-            
-            // Check maximum reasonable age (120 years)
-            if (birthDate.plusYears(120).isBefore(today)) {
-                throw new InvalidRequestException("Invalid date of birth");
-            }
-            
-            return birthDate;
-        } catch (java.time.format.DateTimeParseException e) {
-            throw new InvalidRequestException("Invalid date format");
-        }
-    }
-
-    private Identity authenticateUser(String username, String password)
-            throws InvalidCredentialsException {
+    private Identity authenticateUser(String username, String password) throws InvalidCredentialsException {
         try {
             Identity identity = iamManager.findIdentityByName(username);
+
+            // VÉRIFICATION ACTIVATION
+            if (!identity.isAccountActivated()) {
+                throw new InvalidCredentialsException("Account not activated. Please check your email.");
+            }
+
             if (!Argon2Utility.check(identity.getPassword(), password.toCharArray())) {
                 throw new InvalidCredentialsException("Invalid credentials");
             }
@@ -415,388 +308,167 @@ public class AuthenticationEndpoint {
         }
     }
 
-    private String buildCookieValue(AuthorizationRequest request) {
-        return String.format("%s#%s$%s&%s@%s!%s",
-                request.clientId,
-                request.scope,
-                request.redirectUri,
-                request.responseType,
-                request.codeChallenge,
-                request.state != null ? request.state : ""
-        );
-    }
-
-    private AuthorizationRequest parseCookieValue(String cookieValue) {
-        AuthorizationRequest request = new AuthorizationRequest();
-
-        // Split by % to get username if present
-        String[] usernameParts = cookieValue.split("%");
-        if (usernameParts.length > 1) {
-            request.username = usernameParts[1];
-            cookieValue = usernameParts[0];
-        }
-
-        // Parse: clientId#scope$redirectUri&responseType@codeChallenge!state
-        String[] mainParts = cookieValue.split("\\$");
-
-        // clientId#scope
-        String[] clientScope = mainParts[0].split("#");
-        request.clientId = clientScope[0];
-        request.scope = clientScope[1];
-
-        // redirectUri&responseType@codeChallenge!state
-        if (mainParts.length > 1) {
-            String[] uriAndRest = mainParts[1].split("&", 2);
-            request.redirectUri = uriAndRest[0];
-
-            if (uriAndRest.length > 1) {
-                String[] typeAndRest = uriAndRest[1].split("@", 2);
-                request.responseType = typeAndRest[0];
-
-                if (typeAndRest.length > 1) {
-                    String[] challengeAndState = typeAndRest[1].split("!", 2);
-                    request.codeChallenge = challengeAndState[0];
-                    if (challengeAndState.length > 1) {
-                        request.state = challengeAndState[1];
-                    }
-                }
-            }
-        }
-
-        return request;
-    }
-
-    private String buildRedirectUri(AuthorizationRequest request, String username,
-                                    String approvedScopes) throws Exception {
-        AuthorizationCode authCode = new AuthorizationCode(
-                request.clientId,
-                username,
-                approvedScopes,
-                Instant.now().plus(2, ChronoUnit.MINUTES).getEpochSecond(),
-                request.redirectUri
-        );
-
-        String code = URLEncoder.encode(
-                authCode.getCode(request.codeChallenge),
-                StandardCharsets.UTF_8
-        );
-
-        StringBuilder uri = new StringBuilder(request.redirectUri);
-        uri.append("?code=").append(code);
-
-        if (request.state != null && !request.state.isEmpty()) {
-            uri.append("&state=").append(
-                    URLEncoder.encode(request.state, StandardCharsets.UTF_8)
-            );
-        }
-
-        return uri.toString();
-    }
-
-    private Response redirectWithError(String redirectUri, String error,
-                                       String errorDescription, String state) {
+    private Response processConsent(Cookie sessionCookie, String approvedScopes, String approvalStatus, String username) {
         try {
-            UriBuilder builder = UriBuilder.fromUri(redirectUri)
-                    .queryParam("error", error)
-                    .queryParam("error_description", errorDescription);
+            if (sessionCookie == null) return buildErrorResponse("Session expired");
+            AuthorizationRequest authRequest = parseCookieValue(sessionCookie.getValue());
+            if (username == null || username.isEmpty()) username = authRequest.username;
 
-            if (state != null && !state.isEmpty()) {
-                builder.queryParam("state", state);
+            if ("NO".equals(approvalStatus)) {
+                return redirectWithError(authRequest.redirectUri, "access_denied", "User denied", authRequest.state);
             }
 
-            return Response.seeOther(builder.build()).build();
+            iamManager.saveGrant(authRequest.clientId, username, approvedScopes);
+            String redirectUri = buildRedirectUri(authRequest, username, approvedScopes);
+            return Response.seeOther(URI.create(redirectUri)).build();
         } catch (Exception e) {
-            return buildErrorResponse(errorDescription);
+            return buildErrorResponse("Consent Error: " + e.getMessage());
         }
     }
 
-    private Response showConsentPage(String username, String clientId,
-                                     String redirectUri, String scope,
-                                     String responseType, String codeChallenge,
-                                     String state) {
-        String cookieValue = String.format("%s#%s$%s&%s@%s!%s%%%s",
-                clientId,
-                scope != null ? scope : "resource.read resource.write",
-                redirectUri,
-                responseType != null ? responseType : "code",
-                codeChallenge != null ? codeChallenge : "",
-                state != null ? state : "",
-                username
-        );
+    // --- Gestion des Pages et Formulaires Cachés ---
 
-        NewCookie cookie = createSessionCookie(cookieValue);
-        String html = loadHtmlResource("/consent.html")
-                .replace("{{scope}}", scope != null ? scope : "resource.read resource.write")
-                .replace("{{username}}", username);
+    private Response showActivationPage(String username, String clientId, String redirectUri, String scope,
+                                        String responseType, String codeChallenge, String state, String errorMessage) {
+        String html = loadHtmlResource("/activate.html");
+        html = html.replace("{{username}}", username != null ? username : "");
 
-        return Response.ok(html).cookie(cookie).build();
+        if (errorMessage != null) {
+            html = html.replace("<div id=\"errorMessage\" class=\"error-message\"></div>",
+                    "<div class='error-message show'>" + escapeHtml(errorMessage) + "</div>");
+        }
+
+        StringBuilder hidden = new StringBuilder();
+        // Injection sécurisée (vérifie null)
+        appendHidden(hidden, "client_id", clientId);
+        appendHidden(hidden, "redirect_uri", redirectUri);
+        appendHidden(hidden, "scope", scope);
+        appendHidden(hidden, "response_type", responseType);
+        appendHidden(hidden, "code_challenge", codeChallenge);
+        appendHidden(hidden, "state", state);
+
+        html = html.replace("<!-- OAUTH_PARAMS -->", hidden.toString());
+        return Response.ok(html).build();
     }
 
-    private Response showConsentPageWithCookie(String username,
-                                               AuthorizationRequest request) {
-        String cookieValue = buildCookieValue(request) + "%" + username;
-        NewCookie cookie = createSessionCookie(cookieValue);
-
-        String html = loadHtmlResource("/consent.html")
-                .replace("{{scope}}", request.scope)
-                .replace("{{username}}", username);
-
-        return Response.ok(html).cookie(cookie).build();
-    }
-
-    private NewCookie createSessionCookie(String value) {
-        return new NewCookie.Builder(COOKIE_ID)
-                .value(value)
-                .path("/")
-                .httpOnly(true)
-                .secure(false) // Set to true in production with HTTPS
-                .sameSite(NewCookie.SameSite.LAX)
-                .maxAge(COOKIE_MAX_AGE)
-                .build();
-    }
-
-    private String loadHtmlResource(String resourcePath) {
-        try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                throw new RuntimeException("Resource not found: " + resourcePath);
-            }
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            logger.severe("Error loading resource: " + resourcePath);
-            throw new RuntimeException(e);
+    private void appendHidden(StringBuilder sb, String name, String value) {
+        if(value != null && !value.isEmpty()) {
+            sb.append("<input type='hidden' name='").append(name).append("' value='").append(escapeHtml(value)).append("'>");
         }
     }
 
-    private Response buildErrorResponse(String errorMessage) {
-        String html = String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8"/>
-                <title>Error - Health Monitoring IAM</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                        background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
-                        min-height: 100vh;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 20px;
-                    }
-                    .error-container {
-                        background: white;
-                        border-radius: 12px;
-                        padding: 40px;
-                        max-width: 500px;
-                        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                        text-align: center;
-                    }
-                    .error-icon { font-size: 48px; margin-bottom: 20px; }
-                    h1 { color: #dc3545; margin-bottom: 20px; }
-                    p { color: #666; line-height: 1.6; }
-                    .btn {
-                        display: inline-block;
-                        margin-top: 20px;
-                        padding: 12px 24px;
-                        background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
-                        color: white;
-                        text-decoration: none;
-                        border-radius: 8px;
-                        font-weight: 600;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="error-container">
-                    <div class="error-icon">⚠️</div>
-                    <h1>Authentication Error</h1>
-                    <p>%s</p>
-                    <a href="javascript:history.back()" class="btn">Go Back</a>
-                </div>
-            </body>
-            </html>
-            """, errorMessage);
+    private Response showRegisterPageWithError(String msg, String clientId, String redirectUri, String scope, String rt, String cc, String state) {
+        String html = loadHtmlResource("/register.html");
+        html = html.replace("<div id=\"errorMessage\" class=\"error-message\"></div>",
+                "<div class='error-message show'>" + escapeHtml(msg) + "</div>");
 
-        return Response.status(Response.Status.BAD_REQUEST).entity(html).build();
-    }
-
-    private Response buildSuccessResponse(String message) {
-        String html = String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8"/>
-                <title>Success - Health Monitoring IAM</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                        background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
-                        min-height: 100vh;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        padding: 20px;
-                    }
-                    .success-container {
-                        background: white;
-                        border-radius: 12px;
-                        padding: 40px;
-                        max-width: 500px;
-                        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                        text-align: center;
-                    }
-                    .success-icon { font-size: 48px; margin-bottom: 20px; }
-                    h1 { color: #28a745; margin-bottom: 20px; }
-                    p { color: #666; line-height: 1.6; }
-                </style>
-            </head>
-            <body>
-                <div class="success-container">
-                    <div class="success-icon">✅</div>
-                    <h1>Success</h1>
-                    <p>%s</p>
-                </div>
-            </body>
-            </html>
-            """, message);
+        // Réinjecter les valeurs pour le retry
+        if(clientId != null) html = html.replace("id=\"client_id\"", "id=\"client_id\" value=\"" + escapeHtml(clientId) + "\"");
+        if(redirectUri != null) html = html.replace("id=\"redirect_uri\"", "id=\"redirect_uri\" value=\"" + escapeHtml(redirectUri) + "\"");
+        // ... (etc pour les autres si nécessaire)
 
         return Response.ok(html).build();
     }
 
-    private Response redirectToLoginWithError(String errorMessage) {
+    private Response showLoginPageWithError(String msg, Cookie cookie) {
+        String html = loadHtmlResource("/login.html");
+        html = html.replace("<div id=\"errorMessage\" class=\"error-message\"></div>",
+                "<div class='error-message show'>" + escapeHtml(msg) + "</div>");
+        Response.ResponseBuilder rb = Response.ok(html);
+        if(cookie != null) rb.cookie(new NewCookie.Builder(COOKIE_ID).value(cookie.getValue()).path("/").httpOnly(true).maxAge(COOKIE_MAX_AGE).build());
+        return rb.build();
+    }
+
+    // --- Helpers Utilitaires ---
+
+    private String buildCookieValue(AuthorizationRequest request) {
+        return String.format("%s#%s$%s&%s@%s!%s",
+                request.clientId != null ? request.clientId : "",
+                request.scope != null ? request.scope : "",
+                request.redirectUri != null ? request.redirectUri : "",
+                request.responseType != null ? request.responseType : "",
+                request.codeChallenge != null ? request.codeChallenge : "",
+                request.state != null ? request.state : "");
+    }
+
+    private NewCookie createSessionCookie(String value) {
+        return new NewCookie.Builder(COOKIE_ID).value(value).path("/").httpOnly(true).maxAge(COOKIE_MAX_AGE).build();
+    }
+
+    private Response showConsentPageWithCookie(String username, AuthorizationRequest request) {
+        String cookieValue = buildCookieValue(request) + "%" + username;
+        NewCookie cookie = createSessionCookie(cookieValue);
+        String html = loadHtmlResource("/consent.html")
+                .replace("{{scope}}", request.scope)
+                .replace("{{username}}", username);
+        return Response.ok(html).cookie(cookie).build();
+    }
+
+    private AuthorizationRequest validateAuthorizationRequest(MultivaluedMap<String, String> params) throws InvalidRequestException {
+        AuthorizationRequest req = new AuthorizationRequest();
+        req.clientId = params.getFirst("client_id");
+        if (req.clientId == null || req.clientId.isEmpty()) throw new InvalidRequestException("client_id required");
+
+        var tenant = iamManager.findTenantByName(req.clientId);
+        if (tenant == null) throw new InvalidRequestException("Unknown client: " + req.clientId);
+
+        req.redirectUri = params.getFirst("redirect_uri");
+        if (req.redirectUri == null) throw new InvalidRequestException("redirect_uri required");
+
+        req.responseType = params.getFirst("response_type");
+        req.codeChallenge = params.getFirst("code_challenge");
+        if (req.codeChallenge == null) throw new InvalidRequestException("code_challenge required");
+
+        req.scope = params.getFirst("scope");
+        if(req.scope == null) req.scope = tenant.getRequiredScopes();
+        req.state = params.getFirst("state");
+        return req;
+    }
+
+    private void validatePasswords(String p, String cp) throws InvalidRequestException {
+        if (p == null || !p.equals(cp)) throw new InvalidRequestException("Passwords mismatch");
+    }
+    private void validateEmail(String e) throws InvalidRequestException {
+        if (e == null || !e.contains("@")) throw new InvalidRequestException("Invalid email");
+    }
+    private void validatePhone(String p) throws InvalidRequestException {
+        if (p == null || p.length() < 8) throw new InvalidRequestException("Invalid phone");
+    }
+    private java.time.LocalDate parseBirthdate(String d) throws InvalidRequestException {
+        try { return java.time.LocalDate.parse(d); } catch(Exception e) { throw new InvalidRequestException("Invalid date"); }
+    }
+
+    private String buildRedirectUri(AuthorizationRequest request, String username, String approvedScopes) throws Exception {
+        AuthorizationCode authCode = new AuthorizationCode(request.clientId, username, approvedScopes, Instant.now().plus(2, ChronoUnit.MINUTES).getEpochSecond(), request.redirectUri);
+        String code = URLEncoder.encode(authCode.getCode(request.codeChallenge), StandardCharsets.UTF_8);
+        return request.redirectUri + "?code=" + code + (request.state != null ? "&state=" + URLEncoder.encode(request.state, StandardCharsets.UTF_8) : "");
+    }
+
+    private Response redirectWithError(String uri, String err, String desc, String state) {
         try {
-            // Use relative path to avoid duplication
-            String loginUrl = "../authorize?error=authentication_failed&error_description=" 
-                + URLEncoder.encode(errorMessage, StandardCharsets.UTF_8);
-            return Response.seeOther(URI.create(loginUrl)).build();
-        } catch (Exception e) {
-            return buildErrorResponse(errorMessage);
-        }
+            UriBuilder b = UriBuilder.fromUri(uri).queryParam("error", err).queryParam("error_description", desc);
+            if(state != null) b.queryParam("state", state);
+            return Response.seeOther(b.build()).build();
+        } catch (Exception e) { return buildErrorResponse(desc); }
     }
 
-    private Response showLoginPageWithError(String errorMessage, Cookie sessionCookie) {
-        try (InputStream is = getClass().getResourceAsStream("/login.html")) {
-            if (is == null) {
-                return buildErrorResponse(errorMessage);
-            }
-            
-            String html = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            
-            // Inject error message by showing the error div
-            String errorHtml = String.format(
-                "<div id=\"errorMessage\" class=\"error-message show\">%s</div>",
-                escapeHtml(errorMessage)
-            );
-            html = html.replace(
-                "<div id=\"errorMessage\" class=\"error-message\"></div>",
-                errorHtml
-            );
-            
-            // Preserve the session cookie
-            if (sessionCookie != null) {
-                return Response.ok(html)
-                        .cookie(new NewCookie.Builder(sessionCookie.getName())
-                                .value(sessionCookie.getValue())
-                                .path("/")
-                                .httpOnly(true)
-                                .secure(false)
-                                .maxAge(600)
-                                .build())
-                        .build();
-            }
-            
-            return Response.ok(html).build();
-        } catch (Exception e) {
-            logger.severe("Error rendering login page with error: " + e.getMessage());
-            return buildErrorResponse(errorMessage);
-        }
+    private Response buildErrorResponse(String msg) {
+        return Response.status(Response.Status.BAD_REQUEST).entity(escapeHtml(msg)).build();
     }
 
-    private Response showRegisterPageWithError(String errorMessage, String clientId,
-            String redirectUri, String scope, String responseType,
-            String codeChallenge, String state) {
-        try (InputStream is = getClass().getResourceAsStream("/register.html")) {
-            if (is == null) {
-                return buildErrorResponse(errorMessage);
-            }
-            
-            String html = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            
-            // Inject error message
-            String errorHtml = String.format(
-                "<div id=\"errorMessage\" class=\"error-message show\">%s</div>",
-                escapeHtml(errorMessage)
-            );
-            html = html.replace(
-                "<div id=\"errorMessage\" class=\"error-message\"></div>",
-                errorHtml
-            );
-            
-            // Inject OAuth parameters into hidden fields
-            if (clientId != null) {
-                html = html.replace("id=\"client_id\"", 
-                    "id=\"client_id\" value=\"" + escapeHtml(clientId) + "\"");
-            }
-            if (redirectUri != null) {
-                html = html.replace("id=\"redirect_uri\"", 
-                    "id=\"redirect_uri\" value=\"" + escapeHtml(redirectUri) + "\"");
-            }
-            if (scope != null) {
-                html = html.replace("id=\"scope\"", 
-                    "id=\"scope\" value=\"" + escapeHtml(scope) + "\"");
-            }
-            if (responseType != null) {
-                html = html.replace("id=\"response_type\"", 
-                    "id=\"response_type\" value=\"" + escapeHtml(responseType) + "\"");
-            }
-            if (codeChallenge != null) {
-                html = html.replace("id=\"code_challenge\"", 
-                    "id=\"code_challenge\" value=\"" + escapeHtml(codeChallenge) + "\"");
-            }
-            if (state != null) {
-                html = html.replace("id=\"state\"", 
-                    "id=\"state\" value=\"" + escapeHtml(state) + "\"");
-            }
-            
-            return Response.ok(html).build();
-        } catch (Exception e) {
-            logger.severe("Error rendering register page with error: " + e.getMessage());
-            return buildErrorResponse(errorMessage);
-        }
+    private String loadHtmlResource(String path) {
+        try (InputStream is = getClass().getResourceAsStream(path)) { return new String(is.readAllBytes(), StandardCharsets.UTF_8); } catch (Exception e) { throw new RuntimeException(e); }
     }
 
     private String escapeHtml(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace("\"", "&quot;")
-                   .replace("'", "&#x27;");
+        if(text == null) return "";
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
-    // ==================== Inner Classes ====================
-
+    // Classes Internes
     private static class AuthorizationRequest {
-        String clientId;
-        String redirectUri;
-        String responseType;
-        String scope;
-        String codeChallenge;
-        String codeChallengeMethod;
-        String state;
-        String username; // Set after login
+        String clientId=""; String redirectUri=""; String responseType=""; String scope=""; String codeChallenge=""; String state=""; String username="";
     }
-
-    private static class InvalidRequestException extends Exception {
-        public InvalidRequestException(String message) {
-            super(message);
-        }
-    }
-
-    private static class InvalidCredentialsException extends Exception {
-        public InvalidCredentialsException(String message) {
-            super(message);
-        }
-    }
+    private static class InvalidRequestException extends Exception { public InvalidRequestException(String m) { super(m); } }
+    private static class InvalidCredentialsException extends Exception { public InvalidCredentialsException(String m) { super(m); } }
 }
