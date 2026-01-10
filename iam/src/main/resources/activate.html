@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activate Account - Health Monitoring IAM</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 100%;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .icon { font-size: 48px; margin-bottom: 20px; }
+        h1 { font-size: 24px; color: #333; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 30px; line-height: 1.5; }
+
+        .code-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 8px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .code-input:focus { border-color: #667eea; }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: translateY(-2px); }
+
+        .user-badge {
+            background: #f0f4ff;
+            color: #667eea;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #dc3545;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        .error-message.show { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="icon">📩</div>
+    <h1>Verify Email</h1>
+    <p>
+        Please enter the 6-digit code sent to your email address for account <span class="user-badge">{{username}}</span>
+    </p>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <form action="/iam-1.0/rest-iam/register/activate" method="POST">
+        <input type="hidden" name="username" value="{{username}}">
+
+        <input type="text" name="code" class="code-input" placeholder="000000" maxlength="6" required pattern="[0-9]{6}" autocomplete="off" autofocus>
+
+        <!-- Injection des paramètres OAuth pour ne pas perdre la session -->
+        <!-- OAUTH_PARAMS -->
+
+        <button type="submit">Activate Account</button>
+    </form>
+</div>
+</body>
+</html>
